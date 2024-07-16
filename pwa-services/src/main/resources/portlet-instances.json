@@ -1,0 +1,20 @@
+{
+  "descriptors":[
+    {
+      "nameId":"UserSettingPwa",
+      "categoryNameId":"userSettings",
+      "portletName":"UserSettingPwa",
+      "names":{
+        "en":"layout.portletInstance.UserSettingPwa.name"
+      },
+      "descriptions":{
+        "en":"layout.portletInstance.UserSettingPwa.description"
+      },
+      "permissions":[
+        "*:/platform/administrators",
+        "*:/platform/web-contributors"
+      ],
+      "system":true
+    }
+  ]
+}
