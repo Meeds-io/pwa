@@ -1,0 +1,17 @@
+<%
+  PwaManifestService pwaManifestService = getApplicationComponent(PwaManifestService.class);
+  FeatureService featureService = getApplicationComponent(FeatureService.class);
+
+  if (pwaManifestService.isPwaEnabled()) { %>
+<script type="text/javascript" id="serviceWorkerScript">
+  eXo.env.portal.pwaEnabled = <%=featureService.isFeatureActiveForUser("pwa", rcontext.getRemoteUser())%>;
+  if (window?.matchMedia('(display-mode: standalone)')?.matches
+      && 'serviceWorker' in navigator)  {
+    navigator.serviceWorker.register('/pwa/service-worker',{
+        scope: '/',
+    })
+      .then(reg => reg.update())
+      .catch(e => console.error('Error registering service worker', e));
+  }
+</script>
+<% } %>

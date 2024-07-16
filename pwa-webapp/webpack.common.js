@@ -3,6 +3,10 @@ const ESLintPlugin = require('eslint-webpack-plugin');
 const { VueLoaderPlugin } = require('vue-loader')
 
 const config = {
+  entry: {
+    pwaSettings: './src/main/webapp/vue-app/settings/main.js',
+    pwaUserSettings: './src/main/webapp/vue-app/user-settings/main.js',
+  },
   context: path.resolve(__dirname, '.'),
   module: {
     rules: [
