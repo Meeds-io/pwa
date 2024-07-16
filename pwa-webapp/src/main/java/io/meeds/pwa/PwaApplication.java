@@ -32,8 +32,7 @@ import io.meeds.spring.kernel.PortalApplicationContextInitializer;
 @SpringBootApplication(scanBasePackages = {
     "io.meeds.pwa",
     AvailableIntegration.KERNEL_MODULE,
-    AvailableIntegration.WEB_SECURITY_MODULE,
-    AvailableIntegration.WEB_TRANSACTION_MODULE,
+    AvailableIntegration.WEB_MODULE,
   }, exclude = {
     LiquibaseAutoConfiguration.class,
     DataSourceAutoConfiguration.class,

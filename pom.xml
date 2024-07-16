@@ -30,7 +30,7 @@
     <relativePath/>
   </parent>
   <groupId>io.meeds.pwa</groupId>
-  <artifactId>pwa-parent</artifactId>
+  <artifactId>pwa</artifactId>
   <version>7.0.x-SNAPSHOT</version>
   <packaging>pom</packaging>
   <name>Meeds - PWA - Parent POM</name>
