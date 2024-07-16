@@ -1,0 +1,38 @@
+{
+  "id": "$manifestId"
+  "name": "$companyName",
+  "short_name": "$packageName",
+  "description": "$description"
+  "icons": [{
+    "src": "$logoUrl",
+    "sizes": "512x512",
+    "type": "image/png"
+  },
+  {
+    "src": "$logoUrl225",
+    "sizes": "225x225",
+    "type": "image/png"
+  },
+  {
+    "src": "$maskUrl",
+    "sizes": "196x196",
+    "type": "image/png",
+    "purpose": "any maskable"
+  },
+  {
+    "src": "$faviconUrl",
+    "sizes": "16x16",
+    "type": "image/x-icon"
+  }],
+  "scope": "/",
+  "start_url": "$homeUrl",
+  "lang": "$defaultLang",
+  "dir": "$dir",
+  "orientation": "auto",
+  "background_color": "$primaryColor",
+  "theme_color": "$primaryColor",
+  "display": "standalone",
+  "display_override": "standalone, browser",
+  "launch_handler": "navigate-existing, navigate-new, auto",
+  "prefer_related_applications": false
+}
