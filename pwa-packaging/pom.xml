@@ -44,6 +44,12 @@
       <scope>provided</scope>
       <type>war</type>
     </dependency>
+    <dependency>
+      <groupId>nl.martijndwars</groupId>
+      <artifactId>web-push</artifactId>
+      <scope>provided</scope>
+      <type>jar</type>
+    </dependency>
   </dependencies>
   <build>
     <finalName>pwa</finalName>
