@@ -1,4 +1,0 @@
-<%
-  _ctx.getRequestContext().getJavascriptManager()
-    .require("SHARED/pwa", "pwa").addScripts("pwa.init();");
-%>
