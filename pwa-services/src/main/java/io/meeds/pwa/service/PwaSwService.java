@@ -18,32 +18,38 @@
  */
 package io.meeds.pwa.service;
 
-import java.net.URL;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.gatein.portal.controller.resource.ResourceRequestHandler;
+import org.apache.commons.io.IOUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import org.exoplatform.commons.utils.IOUtil;
 import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.container.configuration.ConfigurationManager;
+import org.exoplatform.portal.application.ResourceRequestFilter;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
 
 @Service
 public class PwaSwService {
 
-  private static final Log               LOG                     = ExoLogger.getLogger(PwaSwService.class);
+  private static final Log               LOG                       = ExoLogger.getLogger(PwaSwService.class);
 
-  private static final boolean           DEVELOPPING             = PropertyManager.isDevelopping();
+  private static final boolean           DEVELOPPING               = PropertyManager.isDevelopping();
 
-  private static final String            DEVELOPMENT_VARIABLE    = "@development@";
+  private static final String            VAPID_PUBLIC_KEY_VARIABLE = "@vapidPublicKey@";
 
-  private static final String            ASSETS_VERSION_VARIABLE = "@assets-version@";
+  private static final String            DEVELOPMENT_VARIABLE      = "@development@";
 
-  private static AtomicReference<String> serviceWorkerContent    = new AtomicReference<>();
+  private static final String            ASSETS_VERSION_VARIABLE   = "@assets-version@";
+
+  private static AtomicReference<String> serviceWorkerContent      = new AtomicReference<>();
+
+  @Autowired
+  private PwaNotificationService         pwaNotificationService;
 
   @Autowired
   private ConfigurationManager           configurationManager;
@@ -53,14 +59,12 @@ public class PwaSwService {
 
   public String getContent() {
     if (serviceWorkerContent.get() == null || DEVELOPPING) {
-      try {
-        URL resourceURL = configurationManager.getResource(serviceWorkerPath);
-        String filePath = resourceURL.getPath();
-        String content = IOUtil.getFileContentAsString(filePath, "UTF-8");
+      try (InputStream is = configurationManager.getInputStream(serviceWorkerPath)) {
+        String content = IOUtils.toString(is, StandardCharsets.UTF_8);
         content = replaceVariables(content);
         serviceWorkerContent.set(content);
       } catch (Exception e) {
-        LOG.warn("Can't find service worker path: {}", serviceWorkerPath);
+        LOG.warn("Can't find service worker path: {}", serviceWorkerPath, e);
         return null;
       }
     }
@@ -68,7 +72,8 @@ public class PwaSwService {
   }
 
   private String replaceVariables(String content) {
-    content = content.replace(ASSETS_VERSION_VARIABLE, ResourceRequestHandler.VERSION);
+    content = content.replace(VAPID_PUBLIC_KEY_VARIABLE, pwaNotificationService.getVapidPublicKeyString().replace("=", ""));
+    content = content.replace(ASSETS_VERSION_VARIABLE, ResourceRequestFilter.version);
     content = content.replace(DEVELOPMENT_VARIABLE, String.valueOf(DEVELOPPING));
     return content;
   }

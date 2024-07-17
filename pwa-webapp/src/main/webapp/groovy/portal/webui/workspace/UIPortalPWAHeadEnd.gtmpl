@@ -1,18 +1,14 @@
 <%
   import org.exoplatform.container.ExoContainerContext;
   import io.meeds.pwa.service.PwaManifestService;
+  import io.meeds.pwa.service.PwaNotificationService;
 
   PwaManifestService pwaManifestService = ExoContainerContext.getService(PwaManifestService.class);
-  if (pwaManifestService.isPwaEnabled()) { %>
-<script type="text/javascript" id="serviceWorkerScript">
+  if (pwaManifestService.isPwaEnabled()) {
+    PwaNotificationService pwaNotificationService = ExoContainerContext.getService(PwaNotificationService.class);
+%><script type="text/javascript" id="serviceWorkerScript">
   eXo.env.portal.pwaEnabled = true;
-  if (window?.matchMedia('(display-mode: standalone)')?.matches
-      && 'serviceWorker' in navigator)  {
-    navigator.serviceWorker.register('/pwa/rest/service-worker',{
-        scope: '/',
-    })
-      .then(reg => reg.update())
-      .catch(e => console.error('Error registering service worker', e));
-  }
-</script>
-<% } %>
+  eXo.env.portal.pwaPushPublicKey = '<%=pwaNotificationService.getVapidPublicKeyString().replace("=", "")%>';
+  window.require(["SHARED/pwa"], pwa => pwa.init());
+</script><%
+} %>

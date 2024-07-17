@@ -76,9 +76,9 @@ public class PwaManifestService {
 
   private static final String   RESET_ATTACHMENT_ID      = "0";
 
-  private static final String   PWA_LARGE_ICON_BASE_PATH = "/portal/rest/v1/platform/branding/manifest/largeIcon?v="; // NOSONAR
+  private static final String   PWA_LARGE_ICON_BASE_PATH = "/pwa/rest/manifest/largeIcon?v="; // NOSONAR
 
-  private static final String   PWA_SMALL_ICON_BASE_PATH = "/portal/rest/v1/platform/branding/manifest/smallIcon?v="; // NOSONAR
+  private static final String   PWA_SMALL_ICON_BASE_PATH = "/pwa/rest/manifest/smallIcon?v="; // NOSONAR
 
   private static final String   FILE_API_NAME_SPACE      = "CompanyBranding";
 

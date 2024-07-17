@@ -50,6 +50,7 @@
     <io.meeds.social.version>7.0.x-meed-SNAPSHOT</io.meeds.social.version>
 
     <nl.martijndwars.web-push.version>5.1.1</nl.martijndwars.web-push.version>
+    <org.bitbucket.b_c.version>0.9.6</org.bitbucket.b_c.version>
     <!-- Sonar properties -->
     <sonar.organization>meeds-io</sonar.organization>
   </properties>
@@ -69,6 +70,11 @@
         <groupId>nl.martijndwars</groupId>
         <artifactId>web-push</artifactId>
         <version>${nl.martijndwars.web-push.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.bitbucket.b_c</groupId>
+        <artifactId>jose4j</artifactId>
+        <version>${org.bitbucket.b_c.version}</version>
       </dependency>
 
       <!-- Current project artifacts -->
