@@ -1,49 +1,93 @@
 self.addEventListener('install', event => self.skipWaiting());
-self.addEventListener('activate', async () => {
-  // This will be called only once when the service worker is activated.
-  try {
-    const urlB64ToUint8Array = (base64String) => {
-      const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
-      const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/')
-      const rawData = atob(base64)
-      const outputArray = new Uint8Array(rawData.length)
-      for (let i = 0; i < rawData.length; ++i) {
-        outputArray[i] = rawData.charCodeAt(i)
-      }
-      return outputArray
-    }
-    const applicationServerKey = urlB64ToUint8Array(
-      'BJ5IxJBWdeqFDJTvrZ4wNRu7UY2XigDXjgiUBYEYVXDudxhEs0ReOJRBcBHsPYgZ5dyV8VjyqzbQKS8V7bUAglk'
-    )
-    const options = { applicationServerKey, userVisibleOnly: true }
-    const subscription = await self.registration.pushManager.subscribe(options)
-    console.log(JSON.stringify(subscription))
-  } catch (err) {
-    console.log('Error', err)
-  }
-})
-
-self.addEventListener('push', (event) => {
+self.addEventListener('push', async (event) => {
   if (self?.Notification?.permission === 'granted') {
-    const data = event?.data?.json?.() || {};
-    const title = data.title || 'Something Has Happened';
-    const body = data.message || 'Summary.';
-    const icon = data.icon || self.location.origin + '/portal/rest/v1/platform/branding/manifest/smallIcon?size=50x50';
-    const image = data.icon || self.location.origin + '/portal/rest/v1/platform/branding/manifest/largeIcon?size=72x72';
-    const path = data.path || '/';
-    self.registration.showNotification(title, {
-      body,
-      icon,
-      badge: image,
-      image,
-      data: {
-        path,
-      },
-    });
-    self.addEventListener('notificationclick', (event) => {
-      event.notification.close(); 
-      console.warn('event.notification', event, event.notification);
-      clients.openWindow(self.location.origin + event.notification.data.path);
-    });
+    const data = event?.data?.text?.() || {};
+    const action = data.split(':')[1]
+    if (action === 'closeAll') {
+      const notifications = await self.registration.getNotifications();
+      if (notifications?.length) {
+        notifications.forEach(notification => notification.close());
+      }
+    } else if (action === 'close') {
+      const notificationId = data.split(':')[0]
+      const notifications = await self.registration.getNotifications();
+      if (notifications?.length) {
+        const notification = notifications.find(notification => notification.tag === notificationId);
+        notification?.close?.();
+      }
+    } else if (action === 'open') {
+      const notificationId = data.split(':')[0]
+      const webNotification = await fetch(`/pwa/rest/notifications/${notificationId}`, {
+        method: 'GET',
+        credentials: 'include',
+      }).then(resp => resp.ok && resp.json());
+      if (webNotification) {
+        const title = webNotification.title || '';
+        delete webNotification.title;
+        webNotification.icon = webNotification.icon || self.location.origin + '/pwa/rest/manifest/smallIcon?sizes=72x72';
+        webNotification.data = {
+          notificationId,
+          path: webNotification.url || '/',
+        };
+        delete webNotification.url;
+        if (!webNotification.tag) {
+          delete webNotification.tag;
+        }
+        if (!webNotification.image) {
+          delete webNotification.image;
+        }
+        if (!webNotification.lang) {
+          delete webNotification.lang;
+        }
+        if (!webNotification.dir) {
+          delete webNotification.dir;
+        }
+        if (!webNotification.body) {
+          delete webNotification.body;
+        }
+        if (!webNotification.badge) {
+          delete webNotification.badge;
+        }
+        if (!webNotification.vibrate) {
+          delete webNotification.vibrate;
+        }
+        if (!webNotification.renotify) {
+          delete webNotification.renotify;
+        }
+        if (!webNotification.requireInteraction) {
+          delete webNotification.requireInteraction;
+        }
+        if (!webNotification.silent) {
+          delete webNotification.silent;
+        }
+        await self.registration.showNotification(title, webNotification);
+        const notifications = await self.registration.getNotifications();
+        navigator.setAppBadge(notifications?.length);
+      }
+    }
   }
+});
+self.addEventListener('notificationclick', (event) => {
+  const notificationId = event.notification.data.notificationId;
+  const path = event.notification.data.path;
+  event.waitUntil(new Promise(async (resolve, reject) => {
+    await fetch(`/pwa/rest/notifications/${notificationId}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: 'action=markRead'
+    });
+    const notifications = await self.registration.getNotifications();
+    navigator.setAppBadge(notifications?.length);
+    try {
+      clients.openWindow(self.location.origin + event.notification.data.path);
+      event.notification.close();
+    } catch(e) {
+      console.error(e);
+      reject(e);
+    }
+    resolve();
+  }));
 });

@@ -19,62 +19,129 @@
 package io.meeds.pwa.service;
 
 import java.security.KeyPair;
-import java.util.HashSet;
-import java.util.Queue;
-import java.util.Set;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.exoplatform.commons.api.notification.model.NotificationInfo;
+import org.exoplatform.commons.api.notification.model.PluginKey;
 import org.exoplatform.commons.api.notification.service.WebNotificationService;
+import org.exoplatform.commons.exception.ObjectNotFoundException;
 import org.exoplatform.services.listener.ListenerService;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
 
+import io.meeds.pwa.model.PwaNotificationMessage;
 import io.meeds.pwa.model.UserPushSubscription;
+import io.meeds.pwa.plugin.DefaultPwaNotificationPlugin;
+import io.meeds.pwa.plugin.PwaNotificationPlugin;
 import io.meeds.pwa.storage.PwaNotificationStorage;
 
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import nl.martijndwars.webpush.Notification;
 import nl.martijndwars.webpush.PushService;
 
 @Service
 public class PwaNotificationService {
 
-  private static final String    PWA_NOTIFICATION_CREATED       = "pwa.notification.created";
+  private static final String                   PWA_NOTIFICATION_CREATED               = "pwa.notification.created";
 
-  private static final String    PWA_NOTIFICATION_DELETED       = "pwa.notification.deleted";
+  private static final String                   PWA_NOTIFICATION_DELETED               = "pwa.notification.deleted";
 
-  private static final String    PWA_NOTIFICATION_ALL_DELETED   = "pwa.notification.allDeleted";
+  private static final String                   PWA_NOTIFICATION_ALL_DELETED           = "pwa.notification.allDeleted";
 
-  private static final String    PWA_NOTIFICATION_DELETE_ALL_ID = "0";
+  private static final String                   PWA_NOTIFICATION_OPEN_UI_ACTION        = "open";
 
-  private static final Log       LOG                            = ExoLogger.getLogger(PwaNotificationService.class);
+  private static final String                   PWA_NOTIFICATION_CLOSE_UI_ACTION       = "close";
+
+  private static final String                   PWA_NOTIFICATION_CLOSE_ALL_UI_ACTION   = "closeAll";
+
+  private static final String                   PWA_NOTIFICATION_MARK_READ_USER_ACTION = "markRead";
+
+  private static final Random                   RANDOM                                 = new Random();
+
+  private static final Log                      LOG                                    =
+                                                    ExoLogger.getLogger(PwaNotificationService.class);
 
   @Autowired
-  private PwaSubscriptionService pwaSubscriptionService;
+  private PwaSubscriptionService                pwaSubscriptionService;
 
   @Autowired
-  private PwaNotificationStorage pwaNotificationStorage;
+  private PwaNotificationStorage                pwaNotificationStorage;
 
   @Autowired
-  private WebNotificationService webNotificationService;
+  private WebNotificationService                webNotificationService;
 
   @Autowired
-  private ListenerService        listenerService;
+  private ListenerService                       listenerService;
 
-  private PushService            pushService;
+  @Autowired
+  private DefaultPwaNotificationPlugin          defaultPwaNotificationPlugin;
+
+  private PushService                           pushService;
 
   @Value("${pwa.notifications.enabled:true}")
-  private boolean                enabled;
+  private boolean                               enabled;
 
-  private Queue<Long>            webNotificationsDeleteQueue    = new ConcurrentLinkedQueue<>();
+  @Value("${pwa.notifications.pool.size:5}")
+  private int                                   poolSize;
 
-  private Queue<Long>            webNotificationsCreateQueue    = new ConcurrentLinkedQueue<>();
+  private Map<PluginKey, PwaNotificationPlugin> plugins                                = new ConcurrentHashMap<>();
 
-  private Queue<String>          webNotificationsDeleteAllQueue = new ConcurrentLinkedQueue<>();
+  private ScheduledExecutorService              executorService;
+
+  @PostConstruct
+  public void init() {
+    ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat("PWA-Push-Notification-%d")
+                                                            .build();
+    executorService = Executors.newScheduledThreadPool(poolSize, threadFactory);
+  }
+
+  @PreDestroy
+  public void destroy() {
+    executorService.shutdown();
+  }
+
+  public PwaNotificationMessage getNotification(long webNotificationId, String username) throws ObjectNotFoundException,
+                                                                                         IllegalAccessException {
+    NotificationInfo notification = webNotificationService.getNotificationInfo(String.valueOf(webNotificationId));
+    if (notification == null) {
+      throw new ObjectNotFoundException(String.format("Notification with id %s doesn't exists", webNotificationId));
+    } else if (!StringUtils.equals(notification.getTo(), username)) {
+      throw new IllegalAccessException(String.format("Notification with id %s access denied", webNotificationId));
+    }
+    PwaNotificationPlugin notificationPlugin = plugins.get(notification.getKey());
+    if (notificationPlugin == null) {
+      notificationPlugin = defaultPwaNotificationPlugin;
+    }
+    return notificationPlugin.process(notification);
+  }
+
+  public void updateNotification(long webNotificationId, String action, String username) throws ObjectNotFoundException,
+                                                                                         IllegalAccessException {
+    NotificationInfo notification = webNotificationService.getNotificationInfo(String.valueOf(webNotificationId));
+    if (notification == null) {
+      throw new ObjectNotFoundException(String.format("Notification with id %s doesn't exists", webNotificationId));
+    } else if (!StringUtils.equals(notification.getTo(), username)) {
+      throw new IllegalAccessException(String.format("Notification with id %s access denied", webNotificationId));
+    }
+    if (StringUtils.equals(action, PWA_NOTIFICATION_MARK_READ_USER_ACTION)) {
+      webNotificationService.markRead(String.valueOf(webNotificationId));
+    }
+  }
 
   /**
    * Send a Push Notification to display to user device(s)
@@ -82,11 +149,7 @@ public class PwaNotificationService {
    * @param webNotificationId
    */
   public void create(long webNotificationId) {
-    if (webNotificationsCreateQueue.offer(webNotificationId)) {
-      listenerService.broadcast(PWA_NOTIFICATION_CREATED, webNotificationId, null);
-    } else {
-      LOG.warn("Web notification with id {} wasn't considered as created", webNotificationId);
-    }
+    executorService.schedule(() -> this.sendCreateNotification(webNotificationId), 1, TimeUnit.SECONDS);
   }
 
   /**
@@ -96,11 +159,7 @@ public class PwaNotificationService {
    * @param webNotificationId
    */
   public void delete(long webNotificationId) {
-    if (webNotificationsDeleteQueue.offer(webNotificationId)) {
-      listenerService.broadcast(PWA_NOTIFICATION_DELETED, webNotificationId, null);
-    } else {
-      LOG.warn("Web notification with id {} wasn't considered as deleted", webNotificationId);
-    }
+    executorService.schedule(() -> this.sendCloseNotification(webNotificationId), 1, TimeUnit.SECONDS);
   }
 
   /**
@@ -109,66 +168,82 @@ public class PwaNotificationService {
    * @param username
    */
   public void deleteAll(String username) {
-    if (webNotificationsDeleteAllQueue.offer(username)) {
+    executorService.schedule(() -> this.sendCloseAllNotifications(username), 1, TimeUnit.SECONDS);
+  }
+
+  /**
+   * @return VAPID Public Key encoded using Base64url
+   */
+  public String getVapidPublicKeyString() {
+    return pwaNotificationStorage.getVapidPublicKeyString();
+  }
+
+  private void sendCloseAllNotifications(String username) {
+    int sentCount = sendNotification(RANDOM.nextLong(), PWA_NOTIFICATION_CLOSE_ALL_UI_ACTION, username);
+    if (sentCount > 0) {
       listenerService.broadcast(PWA_NOTIFICATION_ALL_DELETED, username, null);
-    } else {
-      LOG.warn("Web notification for user {} wasn't considered to consider all its web notification as deleted", username);
     }
   }
 
-  public void processNotifications() {
-    int toCreateSize = webNotificationsCreateQueue.size();
-    int toDeleteSize = webNotificationsDeleteQueue.size();
-    int toAllDeleteSize = webNotificationsDeleteAllQueue.size();
-    int totalSize = toCreateSize + toDeleteSize + toAllDeleteSize;
-    if (totalSize > 0) {
-      long start = System.currentTimeMillis();
-      LOG.info("Process PWA Push notifications: {} to create, {} to delete, {} to all delete",
-               toCreateSize,
-               toDeleteSize,
-               toAllDeleteSize);
-      while (!webNotificationsCreateQueue.isEmpty()) {
-        long webNotificationId = webNotificationsCreateQueue.poll();
-        NotificationInfo notification = webNotificationService.getNotificationInfo(String.valueOf(webNotificationId));
-        sendNotification(notification);
-      }
-      while (!webNotificationsDeleteQueue.isEmpty()) {
-        long webNotificationId = webNotificationsCreateQueue.poll();
-        NotificationInfo notification = webNotificationService.getNotificationInfo(String.valueOf(webNotificationId));
-        sendNotification(notification);
-      }
-      Set<String> processedUserIds = new HashSet<>();
-      while (!webNotificationsDeleteAllQueue.isEmpty()) {
-        String username = webNotificationsDeleteAllQueue.poll();
-        if (!processedUserIds.contains(username)) {
-          processedUserIds.add(username);
-          sendNotification(username, PWA_NOTIFICATION_DELETE_ALL_ID);
-        }
-      }
-      LOG.info("Process PWA Push {} notifications processed in {}ms", totalSize, System.currentTimeMillis() - start);
-    } else {
-      LOG.info("No PWA Push notifications to process");
+  private void sendCloseNotification(Long webNotificationId) {
+    NotificationInfo notification = webNotificationService.getNotificationInfo(String.valueOf(webNotificationId));
+    if (notification == null) {
+      LOG.warn("Can't send notification closing event since notification '{}' wasn't found", webNotificationId);
+      return;
+    }
+    int sentCount = sendNotification(notification, PWA_NOTIFICATION_CLOSE_UI_ACTION);
+    if (sentCount > 0) {
+      listenerService.broadcast(PWA_NOTIFICATION_DELETED, webNotificationId, null);
     }
   }
 
-  private void sendNotification(NotificationInfo notification) {
-    String username = notification.getTo();
+  private void sendCreateNotification(Long webNotificationId) {
+    NotificationInfo notification = webNotificationService.getNotificationInfo(String.valueOf(webNotificationId));
+    if (notification == null) {
+      LOG.warn("Can't send notification creation event since notification '{}' wasn't found", webNotificationId);
+      return;
+    }
+    int sentCount = sendNotification(notification, PWA_NOTIFICATION_OPEN_UI_ACTION);
+    if (sentCount > 0) {
+      listenerService.broadcast(PWA_NOTIFICATION_CREATED, webNotificationId, null);
+    }
+  }
+
+  private int sendNotification(NotificationInfo notification, String action) {
+    if (notification == null) {
+      LOG.warn("Can't send notification action {} since notification is null", action);
+      return 0;
+    }
     String notificationId = notification.getId();
-    sendNotification(notificationId, username);
+    String username = notification.getTo();
+    if (username != null) {
+      return sendNotification(Long.parseLong(notificationId), action, username);
+    } else if (notification.getSendToUserIds() != null) {
+      return notification.getSendToUserIds()
+                         .stream()
+                         .map(user -> sendNotification(Long.parseLong(notificationId), action, username))
+                         .reduce(0, Integer::sum);
+    } else {
+      return 0;
+    }
   }
 
-  private void sendNotification(String notificationId, String username) {
-    pwaSubscriptionService.getSubscriptions(username)
-                          .forEach(subscription -> {
-                            try {
-                              sendPushMessage(subscription, notificationId.getBytes());
-                            } catch (Exception e) {
-                              LOG.warn("Error while sending push notification {} to user {}. Ignore reattempting and continue processing messages queue.",
-                                       notificationId,
-                                       username,
-                                       e);
-                            }
-                          });
+  private int sendNotification(long notificationId, String action, String username) {
+    List<UserPushSubscription> subscriptions = pwaSubscriptionService.getSubscriptions(username);
+    return subscriptions.stream()
+                        .map(subscription -> {
+                          try {
+                            sendPushMessage(subscription, (notificationId + ":" + action).getBytes());
+                            return 1;
+                          } catch (Exception e) {
+                            LOG.warn("Error while sending push notification {} to user {}. Ignore reattempting and continue processing messages queue.",
+                                     notificationId,
+                                     username,
+                                     e);
+                            return 0;
+                          }
+                        })
+                        .reduce(0, Integer::sum);
   }
 
   private void sendPushMessage(UserPushSubscription sub, byte[] payload) throws Exception { // NOSONAR
@@ -188,4 +263,5 @@ public class PwaNotificationService {
     }
     return pushService;
   }
+
 }

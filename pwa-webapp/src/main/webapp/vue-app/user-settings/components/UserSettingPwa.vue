@@ -1,6 +1,6 @@
 <template>
   <v-app>
-    <template v-if="displayed && enabled">
+    <template v-if="displayed">
       <v-card
         class="application-body"
         flat>
@@ -8,21 +8,51 @@
           <v-list-item>
             <v-list-item-content>
               <v-list-item-title class="text-title">
-                {{ $t('UserSettings.pwa') }}
+                <template v-if="isMobile">
+                  {{ $t('UserSettings.pwa.mobile') }}
+                </template>
+                <template v-else>
+                  {{ $t('UserSettings.pwa.desktop') }}
+                </template>
               </v-list-item-title>
-              <v-list-item-subtitle>
+              <v-list-item-subtitle v-if="!isMobile">
                 {{ $t('UserSettings.pwa.subtitle') }}
               </v-list-item-subtitle>
             </v-list-item-content>
             <v-list-item-action>
-              <v-btn
-                :aria-label="$t('UserSettings.pwa.install')"
-                :loading="loading"
-                :disabled="disabledButton"
-                class="btn"
-                @click.native="installPwa">
-                {{ $t('UserSettings.pwa.install') }}
-              </v-btn>
+              <v-card
+                v-if="installed"
+                class="border-color py-2 px-3"
+                disabled
+                flat>
+                <v-icon class="success--text me-2" size="18">fa-check</v-icon>
+                {{ $t('UserSettings.pwa.installed') }}
+              </v-card>
+              <v-tooltip
+                v-else
+                :disabled="pwaSupported && pwaEnabled"
+                bottom>
+                <template #activator="{on, attrs}">
+                  <div
+                    v-on="on"
+                    v-bind="attrs">
+                    <v-btn
+                      :aria-label="$t('UserSettings.pwa.install')"
+                      :loading="loading"
+                      :disabled="disabledButton || !pwaSupported || !pwaEnabled"
+                      class="btn"
+                      @click.native="installPwa">
+                      {{ $t('UserSettings.pwa.install') }}
+                    </v-btn>
+                  </div>
+                </template>
+                <span v-if="!pwaSupported">
+                  {{ $t('UserSettings.pwa.browserNotSupported') }}
+                </span>
+                <span v-else-if="!pwaEnabled">
+                  {{ $t('UserSettings.pwa.pwaNotEnabled') }}
+                </span>
+              </v-tooltip>
             </v-list-item-action>
           </v-list-item>
         </v-list>
@@ -34,19 +64,20 @@
 export default {
   data: () => ({
     displayed: true,
-    enabled: true,
+    installed: true,
+    pwaEnabled: eXo.env.portal.pwaEnabled,
+    pwaSupported: true,
     disabledButton: false,
     loading: false,
   }),
+  computed: {
+    isMobile() {
+      return this.$vuetify?.breakpoint?.mdAndDown;
+    },
+  },
   watch: {
     displayed() {
       this.$nextTick().then(() => this.$root.$emit('application-cache'));
-    },
-    enabled: {
-      immediate: true,
-      handler() {
-        this.$root.$updateApplicationVisibility(this.enabled, this.$root.$el);
-      },
     },
   },
   created() {
@@ -56,31 +87,24 @@ export default {
         this.displayed = false;
       }
     });
-    this.enabled = !!window.deferredPwaPrompt;
-    if (this.enabled) {
-      if (window.deferredPwaPromptTimeout) {
-        window.clearTimeout(window.deferredPwaPromptTimeout);
-      }
-      window.addEventListener('appinstalled', this.hideApplication);
+    this.pwaSupported = 'onbeforeinstallprompt' in window;
+    const pwaMode = !!window?.matchMedia('(display-mode: standalone)')?.matches;
+    this.installed = pwaMode || (this.pwaEnabled && this.pwaSupported && !window.deferredPwaPrompt) || false;
+    if (window.deferredPwaPromptTimeout) {
+      window.clearTimeout(window.deferredPwaPromptTimeout);
     }
   },
   mounted() {
-    this.$nextTick().then(() => this.$root.$applicationLoaded());
-  },
-  beforeDestroy() {
-    window.removeEventListener('appinstalled', this.hideApplication);
+    this.$root.$applicationLoaded();
   },
   methods: {
-    hideApplication() {
-      this.enabled = false;
-    },
     async installPwa() {
       this.loading = true;
       await window.deferredPwaPrompt.prompt();
       const { outcome } = await window.deferredPwaPrompt.userChoice;
       if (outcome === 'accepted') {
         window.deferredPwaPrompt = null;
-        this.disabledButton = true;
+        this.installed = true;
       }
       this.loading = false;
     },
