@@ -153,7 +153,7 @@
     </v-col>
     <v-col
       cols="12"
-      class="mt-8">
+      class="mt-8 mx-0 px-0">
       <div class="d-flex justify-end pb-5">
         <v-btn
           :aria-label="$t('generalSettings.cancel')"
@@ -268,8 +268,8 @@ export default {
               enabled: false,
               name: this.branding?.companyName,
               description: this.$te('meeds.pwa.manifest.description') ? this.$t('meeds.pwa.manifest.description') : this.branding?.companyName,
-              largeIconPath: '/portal/rest/v1/platform/branding/manifest/largeIcon',
-              smallIconPath: '/portal/rest/v1/platform/branding/manifest/smallIcon',
+              largeIconPath: '/pwa/rest/manifest/largeIcon',
+              smallIconPath: '/pwa/rest/manifest/smallIcon',
               themeColor: this.branding?.themeStyle?.primaryColor,
               backgroundColor: this.branding?.themeStyle?.primaryColor,
               smallIconUploadId: null,

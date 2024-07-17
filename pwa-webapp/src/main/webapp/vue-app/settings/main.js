@@ -45,7 +45,6 @@ export function init() {
   exoi18n.loadLanguageAsync(lang, urls).then(i18n => {
     Vue.createApp({
       data: {
-        selectedTab: null,
         loading: false,
       },
       computed: {
@@ -59,15 +58,6 @@ export function init() {
             document.dispatchEvent(new CustomEvent('displayTopBarLoading'));
           } else {
             document.dispatchEvent(new CustomEvent('hideTopBarLoading'));
-          }
-        },
-        selectedTab() {
-          if (this.selectedTab === 'pwa') {
-            if (window.location.hash !== '#pwa') {
-              window.location.hash = '#pwa';
-            }
-          } else if (!this.selectedTab) {
-            window.history.replaceState('', window.document.title, window.location.href.split('#')[0]);
           }
         },
       },

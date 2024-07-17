@@ -24,50 +24,8 @@
       <v-card
         class="px-6 application-body"
         flat>
-        <template v-if="intialized">
-          <v-expand-transition>
-            <v-list-item
-              v-if="$root.selectedTab"
-              dense
-              class="px-0 mb-4">
-              <v-list-item-action class="my-auto me-0 ms-n2">
-                <v-btn
-                  :title="$t('generalSettings.access.backToMain')"
-                  size="24"
-                  icon
-                  @click="close">
-                  <v-icon size="18" class="icon-default-color">
-                    {{ $vuetify.rtl && 'fa-arrow-right' || 'fa-arrow-left' }}
-                  </v-icon>
-                </v-btn>
-              </v-list-item-action>
-              <v-list-item-content>
-                <v-list-item-title class="d-flex">
-                  <v-card
-                    :title="$t('generalSettings.access.backToMain')"
-                    class="flex-grow-0 py-1"
-                    flat
-                    @click="close()">
-                    <div class="text-title">
-                      <template v-if="$root.selectedTab === 'pwa'">
-                        {{ $t('pwaSettings.characteristics') }}
-                      </template>
-                    </div>
-                  </v-card>
-                </v-list-item-title>
-              </v-list-item-content>
-            </v-list-item>
-          </v-expand-transition>
-        </template>
+        <pwa-settings-manifest-window :branding="branding" />
       </v-card>
-      <exo-confirm-dialog
-        ref="closeConfirmDialog"
-        :title="$t('generalSettings.closeTabConfirmTitle')"
-        :message="$t('generalSettings.closeTabConfirmMessage')"
-        :ok-label="$t('generalSettings.yes')"
-        :cancel-label="$t('generalSettings.no')"
-        persistent
-        @ok="closeEffectively" />
     </v-main>
   </v-app>
 </template>
@@ -75,55 +33,19 @@
 export default {
   data: () => ({
     branding: null,
-    errorMessage: null,
-    intialized: false,
-    changed: false,
   }),
-  watch: {
-    errorMessage() {
-      if (this.errorMessage) {
-        this.$root.$emit('alert-message', this.$t(this.errorMessage), 'error');
-      } else {
-        this.$root.$emit('close-alert-message');
-      }
-    },
-  },
   created() {
-    if (window.location.hash === '#pwa') {
-      this.$root.selectedTab = 'pwa';
-    }
+    this.init();
   },
   mounted() {
-    this.init()
-      .then(() => this.$nextTick())
-      .finally(() => {
-        this.$root.$applicationLoaded();
-        this.intialized = true;
-      });
+    this.$root.$applicationLoaded();
   },
   methods: {
     init() {
       this.$root.loading = true;
-      return this.initBranding()
-        .finally(() => this.$root.loading = false);
-    },
-    initBranding() {
       return this.$brandingService.getBrandingInformation()
-        .then(data => this.branding = data);
-    },
-    close() {
-      if (this.changed) {
-        this.$refs.closeConfirmDialog.open();
-      } else {
-        this.closeEffectively();
-      }
-    },
-    closeEffectively() {
-      this.confirmClose = false;
-      this.$nextTick().then(() => {
-        this.$root.selectedTab = null;
-        this.changed = false;
-      });
+        .then(data => this.branding = data)
+        .finally(() => this.$root.loading = false);
     },
   },
 };

@@ -19,7 +19,7 @@
  */
 
 export function getManifest() {
-  return fetch(`${eXo.env.portal.context}/${eXo.env.portal.rest}/v1/platform/branding/manifest`, {
+  return fetch('/pwa/rest/manifest', {
     method: 'GET',
     credentials: 'include',
   }).then((resp) => {
@@ -32,7 +32,7 @@ export function getManifest() {
 }
 
 export function updateManifest(manifest) {
-  return fetch(`${eXo.env.portal.context}/${eXo.env.portal.rest}/v1/platform/branding/manifest`, {
+  return fetch('/pwa/rest/manifest', {
     method: 'PUT',
     credentials: 'include',
     headers: {
