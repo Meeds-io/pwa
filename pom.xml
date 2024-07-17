@@ -49,6 +49,7 @@
   <properties>
     <io.meeds.social.version>7.0.x-meed-SNAPSHOT</io.meeds.social.version>
 
+    <nl.martijndwars.web-push.version>5.1.1</nl.martijndwars.web-push.version>
     <!-- Sonar properties -->
     <sonar.organization>meeds-io</sonar.organization>
   </properties>
@@ -61,6 +62,13 @@
         <version>${io.meeds.social.version}</version>
         <type>pom</type>
         <scope>import</scope>
+      </dependency>
+
+      <!-- Web-push artifact -->
+      <dependency>
+        <groupId>nl.martijndwars</groupId>
+        <artifactId>web-push</artifactId>
+        <version>${nl.martijndwars.web-push.version}</version>
       </dependency>
 
       <!-- Current project artifacts -->

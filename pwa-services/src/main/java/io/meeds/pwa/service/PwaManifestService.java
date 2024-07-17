@@ -34,6 +34,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
 
 import org.exoplatform.commons.api.settings.ExoFeatureService;
 import org.exoplatform.commons.api.settings.SettingService;
@@ -60,6 +61,7 @@ import org.exoplatform.services.thumbnail.ImageThumbnailService;
 import org.exoplatform.upload.UploadResource;
 import org.exoplatform.upload.UploadService;
 
+import io.meeds.common.ContainerTransactional;
 import io.meeds.pwa.model.ManifestIcon;
 import io.meeds.pwa.model.PwaManifest;
 import io.meeds.pwa.model.PwaManifestUpdate;
@@ -67,6 +69,7 @@ import io.meeds.pwa.model.PwaManifestUpdate;
 import jakarta.annotation.PostConstruct;
 import lombok.SneakyThrows;
 
+@Service
 public class PwaManifestService {
 
   private static final Log      LOG                      = ExoLogger.getExoLogger(PwaManifestService.class);
@@ -130,6 +133,9 @@ public class PwaManifestService {
   @Autowired
   private ImageResizeService    imageResizeService;
 
+  @Autowired
+  private ListenerService       listenerService;
+
   @Value("${pwa.manifest.id:}")
   private String                manifestId;
 
@@ -142,8 +148,6 @@ public class PwaManifestService {
   @Value("${pwa.manifest.path:jar:/pwa/manifest.json}")
   private String                pwaManifestPath;
 
-  private ListenerService       listenerService;
-
   private PwaManifest           pwaManifest              = new PwaManifest();
 
   private ManifestIcon          largeIcon                = null;
@@ -151,9 +155,14 @@ public class PwaManifestService {
   private ManifestIcon          smallIcon                = null;
 
   @PostConstruct
-  public void start() {
+  @ContainerTransactional
+  public void init() {
     computePwaProperties();
-    listenerService.addListener("branding.updated", event -> this.computePwaProperties());
+    listenerService.addListener(BrandingService.BRANDING_UPDATED_EVENT, event -> this.computePwaProperties());
+  }
+
+  public boolean isPwaEnabled() {
+    return pwaManifest.isEnabled();
   }
 
   public long getManifestHash() {
@@ -169,7 +178,7 @@ public class PwaManifestService {
     }
   }
 
-  public String getManifestThemeColor() {
+  public String getThemeColor() {
     return pwaManifest.isEnabled() && pwaManifest.getThemeColor() != null ? pwaManifest.getThemeColor() :
                                                                           brandingService.getThemeStyle().get("primaryColor");
   }
@@ -185,11 +194,11 @@ public class PwaManifestService {
         updatePropertyValue(PWA_THEME_COLOR, manifest.getThemeColor(), false);
         updateBrandingFile(manifest.getLargeIconUploadId(),
                            PWA_LARGE_ICON_NAME,
-                           getManifestLargeIcon().getFileId(),
+                           getLargeIcon().getFileId(),
                            PWA_LARGE_ICON);
         updateBrandingFile(manifest.getSmallIconUploadId(),
                            PWA_SMALL_ICON_NAME,
-                           getManifestSmallIcon().getFileId(),
+                           getSmallIcon().getFileId(),
                            PWA_SMALL_ICON);
       }
     } finally {
@@ -199,7 +208,7 @@ public class PwaManifestService {
     }
   }
 
-  public ManifestIcon getManifestLargeIcon() {
+  public ManifestIcon getLargeIcon() {
     if (this.largeIcon == null) {
       try {
         Long imageId = getPropertyValueLong(PWA_LARGE_ICON);
@@ -221,12 +230,12 @@ public class PwaManifestService {
   }
 
   @SneakyThrows
-  public ManifestIcon getManifestLargeIcon(String dimensions) {
-    ManifestIcon manifestLargeIcon = getManifestLargeIcon();
+  public ManifestIcon getLargeIcon(String dimensions) {
+    ManifestIcon manifestLargeIcon = getLargeIcon();
     return getBrandingFileThumbnail(manifestLargeIcon, dimensions);
   }
 
-  public ManifestIcon getManifestSmallIcon() {
+  public ManifestIcon getSmallIcon() {
     if (this.smallIcon == null) {
       try {
         Long imageId = getPropertyValueLong(PWA_SMALL_ICON);
@@ -248,23 +257,19 @@ public class PwaManifestService {
   }
 
   @SneakyThrows
-  public ManifestIcon getManifestSmallIcon(String dimensions) {
-    ManifestIcon brandingFile = getManifestSmallIcon();
+  public ManifestIcon getSmallIcon(String dimensions) {
+    ManifestIcon brandingFile = getSmallIcon();
     return getBrandingFileThumbnail(brandingFile, dimensions);
   }
 
-  public String getManifestLargeIconPath() {
-    ManifestIcon manifestIcon = getManifestLargeIcon();
+  public String getLargeIconPath() {
+    ManifestIcon manifestIcon = getLargeIcon();
     return PWA_LARGE_ICON_BASE_PATH + Objects.hash(manifestIcon.getUpdatedDate());
   }
 
-  public String getManifestSmallIconPath() {
-    ManifestIcon manifestIcon = getManifestSmallIcon();
+  public String getSmallIconPath() {
+    ManifestIcon manifestIcon = getSmallIcon();
     return PWA_SMALL_ICON_BASE_PATH + Objects.hash(manifestIcon.getUpdatedDate());
-  }
-
-  public boolean isPwaEnabled() {
-    return pwaManifest.isEnabled();
   }
 
   private void updateBrandingFile(String uploadId, String fileName, Long fileId, String settingKey) {
@@ -334,10 +339,10 @@ public class PwaManifestService {
     pwaManifest.setThemeColor(getPropertyValue(PWA_THEME_COLOR));
 
     largeIcon = null;
-    pwaManifest.setLargeIconPath(getManifestLargeIconPath());
+    pwaManifest.setLargeIconPath(getLargeIconPath());
 
     smallIcon = null;
-    pwaManifest.setSmallIconPath(getManifestSmallIconPath());
+    pwaManifest.setSmallIconPath(getSmallIconPath());
   }
 
   private void computePwaDescription() {
