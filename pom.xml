@@ -47,7 +47,7 @@
     <tag>HEAD</tag>
   </scm>
   <properties>
-    <org.meeds.social.version>7.0.x-SNAPSHOT</org.meeds.social.version>
+    <io.meeds.social.version>7.0.x-SNAPSHOT</io.meeds.social.version>
 
     <!-- Sonar properties -->
     <sonar.organization>meeds-io</sonar.organization>
@@ -58,7 +58,7 @@
       <dependency>
         <groupId>io.meeds.social</groupId>
         <artifactId>social-component-core</artifactId>
-        <version>${org.meeds.social.version}</version>
+        <version>${io.meeds.social.version}</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
