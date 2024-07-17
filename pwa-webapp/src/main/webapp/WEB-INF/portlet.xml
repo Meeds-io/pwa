@@ -38,7 +38,7 @@
       <mime-type>text/html</mime-type>
     </supports>
     <supported-locale>en</supported-locale>
-    <resource-bundle>locale.portlet.social.UserSettings</resource-bundle>
+    <resource-bundle>locale.portlet.PwaSettings</resource-bundle>
     <portlet-info>
       <title>PWA Settings</title>
     </portlet-info>

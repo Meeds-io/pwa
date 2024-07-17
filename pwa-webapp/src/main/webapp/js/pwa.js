@@ -18,16 +18,18 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-(function() {
-  if (!window?.matchMedia('(display-mode: standalone)')?.matches) {
+(function(exoi18n) {
+  const pwaMode = !!window?.matchMedia('(display-mode: standalone)')?.matches;
+  if (!pwaMode) {
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       window.deferredPwaPrompt = e;
       if (window.localStorage && !window.localStorage.getItem('pwa.suggested')) {
         window.deferredPwaPromptTimeout = window.setTimeout(async () => {
+          const i18n = await exoi18n.loadLanguageAsync(eXo.env.portal.language, `/social-portlet/i18n/locale.portlet.Portlets?lang=${eXo.env.portal.language}`);
           document.dispatchEvent(new CustomEvent('alert-message', {detail:{
-            alertMessage: window.vueI18nMessages['pwa.feature.suggest'],
-            alertLinkText: window.vueI18nMessages['pwa.feature.suggest.install'],
+            alertMessage: i18n.messages?.[eXo.env.portal.language]?.['pwa.feature.suggest'],
+            alertLinkText: i18n.messages?.[eXo.env.portal.language]?.['pwa.feature.suggest.install'],
             alertType: 'info',
             alertLinkCallback: async () => {
               document.dispatchEvent(new CustomEvent('close-alert-message'));
@@ -39,22 +41,62 @@
               window.localStorage.setItem('pwa.suggested', 'true');
             },
           }}));
-        }, 15000);
+        }, 5000);
         window.addEventListener('appinstalled', () => {
           window.clearTimeout(window.deferredPwaPromptTimeout);
-          document.dispatchEvent('closet-alert-message');
+          document.dispatchEvent(new CustomEvent('closet-alert-message'));
         });
       }
     });
   }
   return {
     init: async () => {
-      if (window.eXo.env.portal.pwaEnabled
-          && window.Notification
-          && window.matchMedia?.('(display-mode: standalone)')?.matches
-          && window.Notification?.permission !== 'granted') {
-        Notification.requestPermission();
+      if (!pwaMode || !('serviceWorker' in navigator))  {
+        return;
+      }
+      try {
+        const registration = await navigator.serviceWorker.register('/pwa/rest/service-worker',{
+            scope: '/',
+        });
+        await registration.update();
+        await navigator.serviceWorker.ready;
+
+        // Manually set to 'denied' by user
+        if (Notification.permission === 'denied'
+            || !('PushManager' in window)
+            || !('Notification' in window)) {
+          return;
+        }
+
+        // Get notification permission from user
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+          return;
+        }
+
+        // TODO: This will be called only when the service worker is activated.
+        const subscription = await registration.pushManager.subscribe({
+          applicationServerKey: eXo.env.portal.pwaPushPublicKey,
+          userVisibleOnly: true
+        });
+        var key = subscription?.getKey?.('p256dh') || '';
+        var auth = subscription?.getKey?.('auth') || '';
+
+        await fetch('/pwa/rest/subscriptions', {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            endpoint: subscription.endpoint,
+            key: key && btoa(String.fromCharCode.apply(null, new Uint8Array(key))) || '',
+            auth: auth && btoa(String.fromCharCode.apply(null, new Uint8Array(auth))) || ''
+          }),
+        });
+      } catch (e) {
+        console.error('Error registering service worker', e);
       }
     },
   };
-})();
+})(exoi18n);

@@ -72,12 +72,13 @@ public class PwaManifestRest {
     String eTag = String.valueOf(pwaManifestService.getManifestHash());
     if (request.checkNotModified(eTag)) {
       return null;
+    } else {
+      return ResponseEntity.ok()
+                           .eTag(String.valueOf(eTag))
+                           .lastModified(Instant.now())
+                           .cacheControl(CacheControl.maxAge(Duration.ofDays(365)))
+                           .body(pwaManifestService.getManifestContent());
     }
-    return ResponseEntity.ok()
-                         .eTag(String.valueOf(eTag))
-                         .lastModified(Instant.now())
-                         .cacheControl(CacheControl.maxAge(Duration.ofDays(365)))
-                         .body(pwaManifestService.getManifestContent());
   }
 
   @PutMapping
@@ -101,7 +102,7 @@ public class PwaManifestRest {
   public ResponseEntity<InputStreamResource> getManifestLargeIcon(
                                                                   WebRequest request,
                                                                   @Parameter(description = "Dimensions of size")
-                                                                  @RequestParam("sizes")
+                                                                  @RequestParam(name = "sizes", required = false)
                                                                   String sizes) {
     InputStream inputStream = getBrandingFileResponse(request, pwaManifestService.getLargeIcon(sizes));
     return inputStream == null ? null :
@@ -119,11 +120,8 @@ public class PwaManifestRest {
   public ResponseEntity<InputStreamResource> getManifestSmallIcon(
                                                                   WebRequest request,
                                                                   @Parameter(description = "Dimensions of size")
-                                                                  @RequestParam("sizes")
-                                                                  String sizes,
-                                                                  @Parameter(description = "The value of version parameter will determine whether the query should be cached by browser or not. If not set, no 'expires HTTP Header will be sent'")
-                                                                  @RequestParam(name = "v", required = false)
-                                                                  String version) {
+                                                                  @RequestParam(name = "sizes", required = false)
+                                                                  String sizes) {
     InputStream inputStream = getBrandingFileResponse(request, pwaManifestService.getSmallIcon(sizes));
     return inputStream == null ? null :
                                ResponseEntity.ok()
@@ -139,9 +137,10 @@ public class PwaManifestRest {
     long lastUpdated = iconFile.getUpdatedDate();
     String eTag = String.valueOf(lastUpdated);
     if (request.checkNotModified(eTag)) {
+      return null;
+    } else {
       return new ByteArrayInputStream(iconFile.getData());
     }
-    return null;
   }
 
 }

@@ -24,7 +24,7 @@
                   xmlns="http://www.exoplatform.org/xml/ns/gatein_resources_1_4">
 
   <portlet>
-    <name>PwaSetting</name>
+    <name>PwaSettings</name>
     <module>
       <script>
         <minify>false</minify>
@@ -72,6 +72,17 @@
       </depends>
     </module>
   </portlet>
+
+  <module>
+    <name>pwa</name>
+    <load-group>baseGRP</load-group>
+    <script>
+      <path>/js/pwa.js</path>
+    </script>
+    <depends>
+      <module>eXoVueI18n</module>
+    </depends>
+  </module>
 
 </gatein-resources>
 
