@@ -23,6 +23,7 @@ import java.io.InputStream;
 import java.time.Duration;
 import java.time.Instant;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
@@ -54,6 +55,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @Tag(name = "manifest", description = "Managing PWA Manifest")
 public class PwaManifestRest {
 
+  @Autowired
   private PwaManifestService pwaManifestService;
 
   @GetMapping
@@ -101,7 +103,7 @@ public class PwaManifestRest {
                                                                   @Parameter(description = "Dimensions of size")
                                                                   @RequestParam("sizes")
                                                                   String sizes) {
-    InputStream inputStream = getBrandingFileResponse(request, pwaManifestService.getManifestLargeIcon(sizes));
+    InputStream inputStream = getBrandingFileResponse(request, pwaManifestService.getLargeIcon(sizes));
     return inputStream == null ? null :
                                ResponseEntity.ok()
                                              .contentType(MediaType.IMAGE_PNG)
@@ -122,7 +124,7 @@ public class PwaManifestRest {
                                                                   @Parameter(description = "The value of version parameter will determine whether the query should be cached by browser or not. If not set, no 'expires HTTP Header will be sent'")
                                                                   @RequestParam(name = "v", required = false)
                                                                   String version) {
-    InputStream inputStream = getBrandingFileResponse(request, pwaManifestService.getManifestSmallIcon(sizes));
+    InputStream inputStream = getBrandingFileResponse(request, pwaManifestService.getSmallIcon(sizes));
     return inputStream == null ? null :
                                ResponseEntity.ok()
                                              .contentType(MediaType.IMAGE_PNG)

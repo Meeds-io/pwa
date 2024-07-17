@@ -1,5 +1,8 @@
 <%
-  PwaManifestService pwaManifestService = getApplicationComponent(PwaManifestService.class);
+  import org.exoplatform.container.ExoContainerContext;
+  import io.meeds.pwa.service.PwaManifestService;
+
+  PwaManifestService pwaManifestService = ExoContainerContext.getService(PwaManifestService.class);
 
   _ctx.getRequestContext().getJavascriptManager()
     .require("SHARED/pwa", "pwa").addScripts("pwa.init();");

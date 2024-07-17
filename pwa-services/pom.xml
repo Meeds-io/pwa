@@ -36,6 +36,10 @@
       <groupId>io.meeds.social</groupId>
       <artifactId>social-component-core</artifactId>
     </dependency>
+    <dependency>
+      <groupId>nl.martijndwars</groupId>
+      <artifactId>web-push</artifactId>
+    </dependency>
   </dependencies>
   <build>
     <finalName>pwa-service</finalName>
