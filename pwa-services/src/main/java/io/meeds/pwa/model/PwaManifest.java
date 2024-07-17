@@ -47,20 +47,19 @@ public class PwaManifest {
 
   private String              descriptionKey;
 
-  private String              homeUrl;
-
   private String              content;
 
   private String              template;
 
   public String getContent(Branding branding) {
-    if (enabled && template != null && content == null) {
+    if (enabled
+        && template != null
+        && content == null) {
       content = template.replace("$manifestId", manifestId)
                         .replace("$name", getName(branding))
                         .replace("$description", description)
                         .replace("$largeIconPath", getLargeIconPath(branding))
                         .replace("$smallIconPath", getSmallIconPath(branding))
-                        .replace("$homeUrl", homeUrl)
                         .replace("$defaultLang", branding.getDefaultLanguage())
                         .replace("$dir", branding.getDirection())
                         .replace("$backgroundColor", getBackgroundColor(branding))

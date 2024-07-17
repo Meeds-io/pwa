@@ -1,13 +1,14 @@
 <%
-  PwaManifestService pwaManifestService = getApplicationComponent(PwaManifestService.class);
-  FeatureService featureService = getApplicationComponent(FeatureService.class);
+  import org.exoplatform.container.ExoContainerContext;
+  import io.meeds.pwa.service.PwaManifestService;
 
+  PwaManifestService pwaManifestService = ExoContainerContext.getService(PwaManifestService.class);
   if (pwaManifestService.isPwaEnabled()) { %>
 <script type="text/javascript" id="serviceWorkerScript">
-  eXo.env.portal.pwaEnabled = <%=featureService.isFeatureActiveForUser("pwa", rcontext.getRemoteUser())%>;
+  eXo.env.portal.pwaEnabled = true;
   if (window?.matchMedia('(display-mode: standalone)')?.matches
       && 'serviceWorker' in navigator)  {
-    navigator.serviceWorker.register('/pwa/service-worker',{
+    navigator.serviceWorker.register('/pwa/rest/service-worker',{
         scope: '/',
     })
       .then(reg => reg.update())
