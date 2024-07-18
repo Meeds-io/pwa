@@ -36,6 +36,8 @@ import lombok.Data;
 @Data
 public class UserPushSubscription {
 
+  private String id;
+
   private String auth;
 
   private String key;

@@ -79,11 +79,11 @@ self.addEventListener('notificationclick', (event) => {
       },
       body: 'action=markRead'
     });
+    event.notification.close();
     const notifications = await self.registration.getNotifications();
     navigator.setAppBadge(notifications?.length);
     try {
       clients.openWindow(self.location.origin + event.notification.data.path);
-      event.notification.close();
     } catch(e) {
       console.error(e);
       reject(e);

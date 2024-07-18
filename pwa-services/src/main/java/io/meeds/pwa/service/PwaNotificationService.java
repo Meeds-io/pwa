@@ -18,6 +18,8 @@
  */
 package io.meeds.pwa.service;
 
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +30,10 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.http.HttpResponse;
+import org.apache.http.StatusLine;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -39,6 +44,7 @@ import org.exoplatform.commons.api.notification.model.NotificationInfo;
 import org.exoplatform.commons.api.notification.model.PluginKey;
 import org.exoplatform.commons.api.notification.service.WebNotificationService;
 import org.exoplatform.commons.exception.ObjectNotFoundException;
+import org.exoplatform.commons.utils.MailUtils;
 import org.exoplatform.services.listener.ListenerService;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
@@ -98,6 +104,9 @@ public class PwaNotificationService {
 
   @Value("${pwa.notifications.pool.size:5}")
   private int                                   poolSize;
+
+  @Value("${pwa.notifications.email:}")
+  private String                                email;
 
   private Map<PluginKey, PwaNotificationPlugin> plugins                                = new ConcurrentHashMap<>();
 
@@ -233,35 +242,71 @@ public class PwaNotificationService {
     return subscriptions.stream()
                         .map(subscription -> {
                           try {
-                            sendPushMessage(subscription, (notificationId + ":" + action).getBytes());
-                            return 1;
+                            String payload = notificationId + ":" + action;
+                            String endpoint = subscription.getEndpoint();
+                            HttpResponse httpResponse = sendPushMessage(subscription, payload.getBytes());
+                            StatusLine status = httpResponse.getStatusLine();
+                            if (status.getStatusCode() < 200 || status.getStatusCode() > 299) {
+                              InputStream inputStream = httpResponse.getEntity() == null ? null :
+                                                                                         httpResponse.getEntity().getContent();
+                              try {
+                                LOG.warn("Notification with id '{}' for user '{}' with action '{}' on device with id '{}' using url '{}' not sent with error response code '{} {}' and message '{}'",
+                                         notificationId,
+                                         username,
+                                         action,
+                                         subscription.getId(),
+                                         endpoint.substring(0, endpoint.indexOf("/", 15)),
+                                         status.getStatusCode(),
+                                         status.getReasonPhrase(),
+                                         inputStream == null ? null : IOUtils.toString(inputStream, StandardCharsets.UTF_8));
+                              } finally {
+                                if (inputStream != null) {
+                                  inputStream.close();
+                                }
+                              }
+                            } else {
+                              LOG.info("Notification with id '{}' for user '{}' with action '{}' on device with id '{}' using url '{}' sent successfully",
+                                       notificationId,
+                                       username,
+                                       action,
+                                       subscription.getId(),
+                                       endpoint.substring(0, endpoint.indexOf("/", 15)));
+                              return 1;
+                            }
                           } catch (Exception e) {
                             LOG.warn("Error while sending push notification {} to user {}. Ignore reattempting and continue processing messages queue.",
                                      notificationId,
                                      username,
                                      e);
-                            return 0;
                           }
+                          return 0;
                         })
                         .reduce(0, Integer::sum);
   }
 
-  private void sendPushMessage(UserPushSubscription sub, byte[] payload) throws Exception { // NOSONAR
+  private HttpResponse sendPushMessage(UserPushSubscription sub, byte[] payload) throws Exception { // NOSONAR
     Notification notification = new Notification(
                                                  sub.getEndpoint(),
                                                  sub.userPublicKey(),
                                                  sub.authAsBytes(),
                                                  payload);
     // Send the notification
-    getPushService().send(notification);
+    return getPushService().send(notification);
   }
 
   private PushService getPushService() throws Exception { // NOSONAR
     if (pushService == null) {
       pushService = new PushService(new KeyPair(pwaNotificationStorage.getVapidPublicKey(),
                                                 pwaNotificationStorage.getVapidPrivateKey()));
+      pushService.setSubject("mailto:" + getContactEmail());
     }
     return pushService;
   }
 
+  private String getContactEmail() {
+    if (StringUtils.isBlank(email)) {
+      email = MailUtils.getSenderEmail();
+    }
+    return email;
+  }
 }
