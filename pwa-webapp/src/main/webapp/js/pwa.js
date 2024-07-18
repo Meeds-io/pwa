@@ -20,28 +20,33 @@
 
 (function(exoi18n) {
   const pwaMode = !!window?.matchMedia('(display-mode: standalone)')?.matches;
-  if (!pwaMode) {
+  if (!pwaMode && eXo.env.portal.userName) {
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       window.deferredPwaPrompt = e;
-      if (window.localStorage && !window.localStorage.getItem('pwa.suggested')) {
+      if (window.localStorage && !window.localStorage.getItem(`pwa.suggested-${eXo.env.portal.userName}`)) {
         window.deferredPwaPromptTimeout = window.setTimeout(async () => {
           const i18n = await exoi18n.loadLanguageAsync(eXo.env.portal.language, `/social-portlet/i18n/locale.portlet.Portlets?lang=${eXo.env.portal.language}`);
           document.dispatchEvent(new CustomEvent('alert-message', {detail:{
             alertMessage: i18n.messages?.[eXo.env.portal.language]?.['pwa.feature.suggest'],
             alertLinkText: i18n.messages?.[eXo.env.portal.language]?.['pwa.feature.suggest.install'],
             alertType: 'info',
-            alertLinkCallback: async () => {
+            alertLinkCallback: () => {
               document.dispatchEvent(new CustomEvent('close-alert-message'));
-              await window.deferredPwaPrompt.prompt();
-              const { outcome } = await window.deferredPwaPrompt.userChoice;
-              if (outcome === 'accepted') {
-                window.deferredPwaPrompt = null;
-              }
-              window.localStorage.setItem('pwa.suggested', 'true');
+              window.deferredPwaPrompt.prompt()
+                .then(() => window.deferredPwaPrompt.userChoice)
+                .then(userChoice => {
+                  const outcome = userChoice?.outcome;
+                  if (outcome === 'accepted') {
+                    window.deferredPwaPrompt = null;
+                    initSubscription();
+                  }
+                  window.localStorage.setItem(`pwa.suggested-${eXo.env.portal.userName}`, 'true');
+                });
             },
           }}));
         }, 5000);
+        // Once installed clear timeout and close alert
         window.addEventListener('appinstalled', () => {
           window.clearTimeout(window.deferredPwaPromptTimeout);
           document.dispatchEvent(new CustomEvent('closet-alert-message'));
@@ -49,54 +54,122 @@
       }
     });
   }
-  return {
-    init: async () => {
-      if (!pwaMode || !('serviceWorker' in navigator))  {
+
+  async function init() {
+    if (!pwaMode || !('serviceWorker' in navigator) || !eXo.env.portal.userName)  {
+      return;
+    }
+    initSubscription();
+  }
+
+  async function initSubscription() {
+    try {
+      const registration = await navigator.serviceWorker.register('/pwa/rest/service-worker',{
+          scope: '/',
+      });
+      if (window.localStorage.getItem(`pwa.service-worker.version`)
+        && window.localStorage.getItem(`pwa.service-worker.version`) !== eXo.env.client.assetsVersion) {
+        await registration.update();
+        window.localStorage.setItem('pwa.service-worker.version', eXo.env.client.assetsVersion);
+      }
+      await navigator.serviceWorker.ready;
+
+      if (!('Notification' in window)) {
+        console.debug('Notification not supported by browser');
         return;
       }
-      try {
-        const registration = await navigator.serviceWorker.register('/pwa/rest/service-worker',{
-            scope: '/',
-        });
-        await registration.update();
-        await navigator.serviceWorker.ready;
 
-        // Manually set to 'denied' by user
-        if (Notification.permission === 'denied'
-            || !('PushManager' in window)
-            || !('Notification' in window)) {
-          return;
-        }
-
-        // Get notification permission from user
-        const permission = await Notification.requestPermission();
-        if (permission !== 'granted') {
-          return;
-        }
-
-        // TODO: This will be called only when the service worker is activated.
-        const subscription = await registration.pushManager.subscribe({
-          applicationServerKey: eXo.env.portal.pwaPushPublicKey,
-          userVisibleOnly: true
-        });
-        var key = subscription?.getKey?.('p256dh') || '';
-        var auth = subscription?.getKey?.('auth') || '';
-
-        await fetch('/pwa/rest/subscriptions', {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            endpoint: subscription.endpoint,
-            key: key && btoa(String.fromCharCode.apply(null, new Uint8Array(key))) || '',
-            auth: auth && btoa(String.fromCharCode.apply(null, new Uint8Array(auth))) || ''
-          }),
-        });
-      } catch (e) {
-        console.error('Error registering service worker', e);
+      if (Notification.permission === 'denied') {
+        console.debug('Notification permission', permission, ' explicitely denied ignore notifications registration');
+        return;
       }
-    },
+
+      if (!('PushManager' in window)) {
+        console.debug('PushManager not supported by browser');
+        return;
+      }
+
+      if (Notification.permission === 'granted') {
+        subscribe(registration);
+        return;
+      } else if (window.localStorage.getItem(`pwa.notification.suggested-${eXo.env.portal.userName}`)) {
+        console.debug('Notification permission already asked to user, ignore asking for it again');
+        return;
+      }
+
+      const i18n = await exoi18n.loadLanguageAsync(eXo.env.portal.language, `/social-portlet/i18n/locale.portlet.Portlets?lang=${eXo.env.portal.language}`);
+      window.setTimeout(() => {
+        document.dispatchEvent(new CustomEvent('alert-message', {detail:{
+          alertMessage: i18n.messages?.[eXo.env.portal.language]?.['pwa.feature.allowNotifications'],
+          alertLinkText: i18n.messages?.[eXo.env.portal.language]?.['pwa.feature.allowNotifications.allow'],
+          alertType: 'info',
+          alertDismissCallback: () => {
+            window.localStorage.setItem(`pwa.notification.suggested-${eXo.env.portal.userName}`, 'true');
+          },
+          alertLinkCallback: async () => {
+            document.dispatchEvent(new CustomEvent('close-alert-message'));
+            window.localStorage.setItem(`pwa.notification.suggested-${eXo.env.portal.userName}`, 'true');
+            // Get notification permission from user
+            const permission = await Notification.requestPermission();
+            if (permission === 'granted') {
+              subscribe(registration, true);
+            } else {
+              console.debug('Notification permission', permission, 'not granted, thus ignore Push API registration');
+            }
+          },
+        }}));
+      }, 3000);
+    } catch (e) {
+      console.error('Error registering service worker', e);
+    }
+  }
+
+  async function subscribe(registration, forceRegister) {
+    let subscription = !forceRegister && await registration.pushManager.getSubscription() || null;
+    let isNew = !subscription?.endpoint;
+    if (isNew) {
+      subscription = await registration.pushManager.subscribe({
+        applicationServerKey: eXo.env.portal.pwaPushPublicKey,
+        userVisibleOnly: true
+      });
+    }
+    console.debug('Subscribe to Push Notifications, isNew = ', isNew, 'old VS new endpoint = ', subscription.endpoint !== window.localStorage.getItem(`pwa.notification.endpoint-${eXo.env.portal.userName}`));
+    if (isNew
+      || subscription.endpoint !== window.localStorage.getItem(`pwa.notification.endpoint-${eXo.env.portal.userName}`)) {
+      const key = subscription?.getKey?.('p256dh') || '';
+      const auth = subscription?.getKey?.('auth') || '';
+      await fetch('/pwa/rest/subscriptions', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: getSubscriptionId(),
+          endpoint: subscription.endpoint,
+          key: key && btoa(String.fromCharCode.apply(null, new Uint8Array(key))) || '',
+          auth: auth && btoa(String.fromCharCode.apply(null, new Uint8Array(auth))) || ''
+        }),
+      })
+        .then(() => window.localStorage.setItem(`pwa.notification.endpoint-${eXo.env.portal.userName}`, subscription.endpoint));
+    }
+  }
+
+  function getSubscriptionId() {
+    let subscriptionId = window.localStorage.getItem(`pwa.notification.subscription.id-${eXo.env.portal.userName}`);
+    if (!subscriptionId) {
+      const id = eXo.env.portal.userName + parseInt(Math.random() * Number.MAX_SAFE_INTEGER) + navigator.userAgent;
+      subscriptionId = 0;
+      let i = 0;
+      while (i < id.length) {
+        subscriptionId = (subscriptionId << 5) - subscriptionId + id.charCodeAt(i++) | 0;
+      }
+      window.localStorage.setItem(`pwa.notification.subscription.id-${eXo.env.portal.userName}`, subscriptionId);
+    }
+    return subscriptionId;
+  }
+
+  return {
+    init,
   };
 })(exoi18n);
