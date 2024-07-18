@@ -70,7 +70,7 @@ public class PwaPushSubscriptionRest {
                           HttpServletRequest request,
                           @RequestBody
                           UserPushSubscription subscription) {
-    pwaSubscriptionService.deleteSubscription(subscription.getEndpoint(), request.getRemoteUser());
+    pwaSubscriptionService.deleteSubscription(subscription.getId(), request.getRemoteUser());
   }
 
 }

@@ -37,7 +37,7 @@ import io.meeds.social.util.JsonUtils;
 @Component
 public class PwaSubscriptionStorage {
 
-  private static final Scope PWA_SUBSCRIPTION_SCOPE = Scope.APPLICATION.id("PWA_SUBSCRIPTIONS");
+  private static final Scope PWA_SUBSCRIPTION_SCOPE = Scope.APPLICATION.id("PWA_PUSH_SUBSCRIPTIONS");
 
   @Autowired
   private SettingService     settingService;
@@ -64,12 +64,12 @@ public class PwaSubscriptionStorage {
   public void create(UserPushSubscription subscription, String username) {
     settingService.set(Context.USER.id(username),
                        PWA_SUBSCRIPTION_SCOPE,
-                       subscription.getEndpoint(),
+                       subscription.getId(),
                        SettingValue.create(JsonUtils.toJsonString(subscription)));
   }
 
-  public void delete(String subscriptionEndpoint, String username) {
-    settingService.remove(Context.USER.id(username), PWA_SUBSCRIPTION_SCOPE, subscriptionEndpoint);
+  public void delete(String id, String username) {
+    settingService.remove(Context.USER.id(username), PWA_SUBSCRIPTION_SCOPE, id);
   }
 
   public void deleteAll(String username) {
