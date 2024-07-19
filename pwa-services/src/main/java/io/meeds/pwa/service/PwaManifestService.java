@@ -35,6 +35,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import org.exoplatform.commons.api.notification.channel.AbstractChannel;
+import org.exoplatform.commons.api.notification.channel.ChannelManager;
+import org.exoplatform.commons.api.notification.model.ChannelKey;
 import org.exoplatform.commons.api.settings.ExoFeatureService;
 import org.exoplatform.commons.api.settings.SettingService;
 import org.exoplatform.commons.api.settings.SettingValue;
@@ -71,39 +74,41 @@ import lombok.SneakyThrows;
 @Service
 public class PwaManifestService {
 
-  private static final Log      LOG                      = ExoLogger.getExoLogger(PwaManifestService.class);
+  private static final Log      LOG                        = ExoLogger.getExoLogger(PwaManifestService.class);
 
-  private static final String   RESET_ATTACHMENT_ID      = "0";
+  private static final String   RESET_ATTACHMENT_ID        = "0";
 
-  private static final String   PWA_LARGE_ICON_BASE_PATH = "/pwa/rest/manifest/largeIcon?v="; // NOSONAR
+  public static final String    DEPRECATED_PUSH_CHANNEL_ID = "PUSH_CHANNEL";
 
-  private static final String   PWA_SMALL_ICON_BASE_PATH = "/pwa/rest/manifest/smallIcon?v="; // NOSONAR
+  private static final String   PWA_LARGE_ICON_BASE_PATH   = "/pwa/rest/manifest/largeIcon?v=";               // NOSONAR
 
-  private static final String   FILE_API_NAME_SPACE      = "CompanyBranding";
+  private static final String   PWA_SMALL_ICON_BASE_PATH   = "/pwa/rest/manifest/smallIcon?v=";               // NOSONAR
 
-  private static final String   PWA_LARGE_ICON_NAME      = "largeIcon.png";
+  private static final String   FILE_API_NAME_SPACE        = "CompanyBranding";
 
-  private static final String   PWA_SMALL_ICON_NAME      = "smallIcon.png";
+  private static final String   PWA_LARGE_ICON_NAME        = "largeIcon.png";
 
-  private static final String   PWA_FEATURE              = "pwa";
+  private static final String   PWA_SMALL_ICON_NAME        = "smallIcon.png";
 
-  private static final String   PWA_NAME                 = "pwa.name";
+  private static final String   PWA_FEATURE                = "pwa";
 
-  private static final String   PWA_DESCRIPTION          = "pwa.description";
+  private static final String   PWA_NAME                   = "pwa.name";
 
-  private static final String   PWA_BACKGROUND_COLOR     = "pwa.backgroundColor";
+  private static final String   PWA_DESCRIPTION            = "pwa.description";
 
-  private static final String   PWA_THEME_COLOR          = "pwa.themeColor";
+  private static final String   PWA_BACKGROUND_COLOR       = "pwa.backgroundColor";
 
-  private static final String   PWA_LARGE_ICON           = "pwa.illustration512";
+  private static final String   PWA_THEME_COLOR            = "pwa.themeColor";
 
-  private static final String   PWA_SMALL_ICON           = "pwa.illustration71";
+  private static final String   PWA_LARGE_ICON             = "pwa.illustration512";
 
-  private static final boolean  DEVELOPPING              = PropertyManager.isDevelopping();
+  private static final String   PWA_SMALL_ICON             = "pwa.illustration71";
 
-  private static final String   DEFAULT_DOMAIN_NAME      = "test.meeds.io";
+  private static final boolean  DEVELOPPING                = PropertyManager.isDevelopping();
 
-  private static final String   DOMAIN_URL_PARAM_NAME    = "gatein.email.domain.url";
+  private static final String   DEFAULT_DOMAIN_NAME        = "test.meeds.io";
+
+  private static final String   DOMAIN_URL_PARAM_NAME      = "gatein.email.domain.url";
 
   @Autowired
   private SettingService        settingService;
@@ -133,6 +138,9 @@ public class PwaManifestService {
   private ImageResizeService    imageResizeService;
 
   @Autowired
+  private ChannelManager        channelManager;
+
+  @Autowired
   private ListenerService       listenerService;
 
   @Value("${pwa.manifest.id:}")
@@ -147,11 +155,11 @@ public class PwaManifestService {
   @Value("${pwa.manifest.path:jar:/pwa/manifest.json}")
   private String                pwaManifestPath;
 
-  private PwaManifest           pwaManifest              = new PwaManifest();
+  private PwaManifest           pwaManifest                = new PwaManifest();
 
-  private ManifestIcon          largeIcon                = null;
+  private ManifestIcon          largeIcon                  = null;
 
-  private ManifestIcon          smallIcon                = null;
+  private ManifestIcon          smallIcon                  = null;
 
   @PostConstruct
   @ContainerTransactional
@@ -320,6 +328,8 @@ public class PwaManifestService {
   @SneakyThrows
   private void computePwaProperties() {
     pwaManifest.setEnabled(featureService.isActiveFeature(PWA_FEATURE));
+    updateNativeAppPushChannelStatus();
+
     pwaManifest.setManifestId(getDomainName());
     if (pwaManifestPath != null && pwaManifest.getTemplate() == null || DEVELOPPING) {
       try (InputStream inputStream = configurationManager.getInputStream(pwaManifestPath)) {
@@ -472,6 +482,13 @@ public class PwaManifestService {
 
   private void refreshManifest() {
     pwaManifest.setContent(null);
+  }
+
+  private void updateNativeAppPushChannelStatus() {
+    AbstractChannel channel = channelManager.getChannel(ChannelKey.key(DEPRECATED_PUSH_CHANNEL_ID));
+    if (channel != null) {
+      channel.setEnabled(!pwaManifest.isEnabled());
+    }
   }
 
 }
