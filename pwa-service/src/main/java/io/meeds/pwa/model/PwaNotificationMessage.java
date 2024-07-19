@@ -41,7 +41,7 @@ public class PwaNotificationMessage {
 
   private String                      url;
 
-  private boolean                     vibrate;
+  private List<Integer>               vibrate;
 
   private boolean                     renotify;
 

@@ -13,7 +13,7 @@ self.addEventListener('push', async (event) => {
       const notificationId = data.split(':')[0]
       const notifications = await self.registration.getNotifications();
       if (notifications?.length) {
-        const notification = notifications.find(notification => notification.tag === notificationId);
+        const notification = notifications.find(notification => notification?.data?.notificationId === notificationId);
         notification?.close?.();
       }
     } else if (action === 'open') {
@@ -33,6 +33,7 @@ self.addEventListener('push', async (event) => {
         delete webNotification.url;
         if (!webNotification.tag) {
           delete webNotification.tag;
+          delete webNotification.renotify;
         }
         if (!webNotification.image) {
           delete webNotification.image;
@@ -46,20 +47,11 @@ self.addEventListener('push', async (event) => {
         if (!webNotification.body) {
           delete webNotification.body;
         }
-        if (!webNotification.badge) {
-          delete webNotification.badge;
-        }
         if (!webNotification.vibrate) {
           delete webNotification.vibrate;
         }
-        if (!webNotification.renotify) {
-          delete webNotification.renotify;
-        }
-        if (!webNotification.requireInteraction) {
-          delete webNotification.requireInteraction;
-        }
-        if (!webNotification.silent) {
-          delete webNotification.silent;
+        if (!webNotification.badge) {
+          webNotification.badge = webNotification.icon;
         }
         if (!Notification.maxActions || !webNotification.actions) {
           delete webNotification.actions;
@@ -77,34 +69,77 @@ self.addEventListener('notificationclick', (event) => {
   const url = event.notification.data.url;
   event.waitUntil(new Promise(async (resolve) => {
     event.notification.close();
-    if (event.action) {
-      await updateNotification(event.notification.data.notificationId, event.action);
-    } else {
-      try {
-        const windows = await clients.matchAll({ type: "window" });
-        const focused = windows
-          .some(w => w.url === url ? (windowClient.focus(), true) : false);
-        if (focused) {
-          console.debug('window with url ', url, ' focused');
+    const notificationId = event?.notification?.data?.notificationId || event?.notification?.tag;
+    try {
+      if (event.action) {
+        await updateNotification(notificationId, event.action);
+      } else if (clients && 'openWindow' in clients && 'matchAll' in clients) {
+        const windowClients = await clients.matchAll({
+          type: 'window',
+          includeUncontrolled: true,
+        });
+        let matchingClient = null;
+        let i = 0;
+        while (!matchingClient && i < windowClients.length) {
+          if (!windowClients[i].url.replace(self.location.origin, '').includes('editor')) {
+            matchingClient = windowClients[i];
+          } else {
+            i++;
+          }
+        }
+
+        if (matchingClient?.navigate && matchingClient?.focus) {
+          try {
+            await matchingClient.focus();
+            try {
+              await matchingClient.navigate(url);
+            } catch(e) {
+              matchingClient.postMessage({
+                action: 'redirect-path',
+                url,
+              });
+            }
+          } catch(e) {
+            await clients.openWindow(url);
+          }
         } else {
-          console.debug('Open new window with url ', url);
           await clients.openWindow(url);
         }
-      } catch(e) {
-        console.error(e);
       }
+    } catch(e) {
+      console.error(e);
+    } finally {
+      await handleClose(notificationId);
+      resolve();
     }
-    resolve();
   }));
 });
 
 self.addEventListener('notificationclose', (event) => {
-  event.waitUntil(new Promise(async (resolve) => {
-    await refreshBadge();
-    await updateNotification(event.notification.data.notificationId, 'markRead');
-    resolve();
-  }));
+  const notificationId = event?.notification?.data?.notificationId || event?.notification?.tag;
+  if (notificationId) {
+    event.waitUntil(new Promise(async (resolve) => {
+      try {
+        await handleClose(notificationId);
+      } finally {
+        resolve();
+      }
+    }));
+  }
 });
+
+async function handleClose(notificationId) {
+  try {
+    await updateNotification(notificationId, 'markRead');
+  } catch(e) {
+    console.error(e);
+  }
+  try {
+    await refreshBadge();
+  } catch(e) {
+    console.error(e);
+  }
+}
 
 async function updateNotification(notificationId, action) {
   await fetch(`/pwa/rest/notifications/${notificationId}`, {
@@ -120,6 +155,10 @@ async function updateNotification(notificationId, action) {
 async function refreshBadge() {
   if (navigator.setAppBadge) {
     const notifications = await self.registration.getNotifications();
-    navigator?.setAppBadge?.(notifications?.length);
+    if (notifications?.length) {
+      await navigator?.setAppBadge?.(notifications.length);
+    } else {
+      await navigator?.clearAppBadge?.();
+    }
   }
 }

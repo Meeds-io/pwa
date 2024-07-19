@@ -75,18 +75,21 @@
         window.localStorage.setItem('pwa.service-worker.version', eXo.env.client.assetsVersion);
       }
       await navigator.serviceWorker.ready;
+      navigator.serviceWorker.addEventListener('message', (event) => {
+        if (event?.data?.action === 'redirect-path'
+           && event.data.url?.includes(window.location.origin)) {
+          window.location.href = event.data.url;
+        }
+      });
 
       if (!('PushManager' in window)) {
-        console.debug('PushManager not supported by browser');
         return;
       }
 
       if (!('Notification' in window)) {
-        console.debug('Notification not supported by browser');
         return;
       } else if (Notification.permission === 'denied'
         && window.localStorage.getItem(`pwa.notification.suggested-${eXo.env.portal.userName}`)) {
-        console.debug('Notification permission', permission, ' explicitely denied ignore notifications registration');
         return;
       }
 
@@ -97,7 +100,7 @@
         window.setTimeout(() => {
           document.dispatchEvent(new CustomEvent('alert-message', {detail:{
             alertMessage: i18n.messages?.[eXo.env.portal.language]?.['pwa.feature.allowNotifications'],
-            alertLinkText: i18n.messages?.[eXo.env.portal.language]?.['pwa.feature.allowNotifications.allow'],
+            alertLinkText: i18n.messages?.[eXo.env.portal.language]?.['pwa.feature.allowNotifications.chooseOption'],
             alertType: 'info',
             alertDismissCallback: () => {
               window.localStorage.setItem(`pwa.notification.suggested-${eXo.env.portal.userName}`, 'true');
@@ -109,8 +112,6 @@
               const permission = await Notification.requestPermission();
               if (permission === 'granted') {
                 subscribe(registration, true);
-              } else {
-                console.debug('Notification permission', permission, 'not granted, thus ignore Push API registration');
               }
             },
           }}));
@@ -130,7 +131,6 @@
         userVisibleOnly: true
       });
     }
-    console.debug('Subscribe to Push Notifications, isNew: ', isNew, '(old endpoint === new endpoint): ', subscription.endpoint === window.localStorage.getItem(`pwa.notification.endpoint-${eXo.env.portal.userName}`));
     if (isNew
       || subscription.endpoint !== window.localStorage.getItem(`pwa.notification.endpoint-${eXo.env.portal.userName}`)) {
       const key = subscription?.getKey?.('p256dh') || '';
