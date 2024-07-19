@@ -330,7 +330,9 @@ public class PwaManifestService {
     pwaManifest.setEnabled(featureService.isActiveFeature(PWA_FEATURE));
     updateNativeAppPushChannelStatus();
 
-    pwaManifest.setManifestId(getDomainName());
+    String domainName = getDomainName();
+    pwaManifest.setManifestId(domainName);
+    pwaManifest.setDomainName(domainName);
     if (pwaManifestPath != null && pwaManifest.getTemplate() == null || DEVELOPPING) {
       try (InputStream inputStream = configurationManager.getInputStream(pwaManifestPath)) {
         pwaManifest.setTemplate(IOUtil.getStreamContentAsString(inputStream));
