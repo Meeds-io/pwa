@@ -34,6 +34,4 @@ public class PwaNotificationAction {
 
   private String action;
 
-  private String type = "button";
-
 }

@@ -45,6 +45,8 @@ public class PwaManifest {
 
   private String              manifestId;
 
+  private String              domainName;
+
   private String              descriptionKey;
 
   private String              content;
@@ -63,6 +65,7 @@ public class PwaManifest {
                         .replace("$defaultLang", branding.getDefaultLanguage())
                         .replace("$dir", branding.getDirection())
                         .replace("$backgroundColor", getBackgroundColor(branding))
+                        .replace("$domainName", domainName)
                         .replace("$themeColor", getThemeColor(branding));
     }
     return content;

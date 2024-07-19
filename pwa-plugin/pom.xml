@@ -36,6 +36,14 @@
       <groupId>${project.groupId}</groupId>
       <artifactId>pwa-service</artifactId>
     </dependency>
+    <dependency>
+      <groupId>io.meeds.social</groupId>
+      <artifactId>social-component-notification</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.meeds.gamification</groupId>
+      <artifactId>gamification-services</artifactId>
+    </dependency>
   </dependencies>
   <build>
     <finalName>pwa-plugin</finalName>
