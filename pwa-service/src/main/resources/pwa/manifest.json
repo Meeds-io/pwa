@@ -1,17 +1,20 @@
 {
   "id": "/",
   "start_url": "/",
+  "scope": "/",
   "name": "$name",
   "short_name": "$name",
   "description": "$description",
   "icons": [{
     "src": "$largeIconPath&sizes=1024x1024",
     "sizes": "1024x1024",
-    "type": "image/png"
+    "type": "image/png",
+    "purpose": "maskable"
   }, {
     "src": "$largeIconPath&sizes=192x192",
     "sizes": "192x192",
-    "type": "image/png"
+    "type": "image/png",
+    "purpose": "any"
   }, {
     "src": "$smallIconPath&sizes=144x144",
     "sizes": "144x144",
@@ -19,10 +22,8 @@
   }, {
     "src": "$smallIconPath&sizes=72x72",
     "sizes": "72x72",
-    "type": "image/png",
-    "purpose": "any maskable"
+    "type": "image/png"
   }],
-  "scope": "/",
   "lang": "$defaultLang",
   "dir": "$dir",
   "background_color": "$backgroundColor",
@@ -35,5 +36,14 @@
   "launch_handler": {
     "client_mode": ["navigate-new", "auto"]
   },
+  "scope_extensions": [
+    {
+      "origin": "$domainName"
+    }
+  ],
+  "handle_links": "preferred",
+  "orientation": "any",
+  "screenshots": [],
+  "categories": [],
   "prefer_related_applications": true
 }

@@ -49,6 +49,7 @@
   </scm>
   <properties>
     <io.meeds.social.version>7.0.x-SNAPSHOT</io.meeds.social.version>
+    <addon.meeds.gamification.version>7.0.x-SNAPSHOT</addon.meeds.gamification.version>
 
     <nl.martijndwars.web-push.version>5.1.1</nl.martijndwars.web-push.version>
     <org.bitbucket.b_c.version>0.9.6</org.bitbucket.b_c.version>
@@ -62,6 +63,13 @@
         <groupId>io.meeds.social</groupId>
         <artifactId>social-component-core</artifactId>
         <version>${io.meeds.social.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>io.meeds.gamification</groupId>
+        <artifactId>gamification</artifactId>
+        <version>${addon.meeds.gamification.version}</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
