@@ -63,7 +63,7 @@ public class DefaultPwaNotificationPlugin implements PwaNotificationPlugin {
     PluginConfig templateConfig = pluginSettingService.getPluginConfig(pluginId);
     String bundlePath = templateConfig.getBundlePath();
     String subjectKey = templateConfig.getKeyValue(PluginConfig.SUBJECT_KEY, getDefaultKey(DEFAULT_SUBJECT_KEY, pluginId));
-    Locale locale = getLocale(notification);
+    Locale locale = getLocale(notification.getTo());
     String title = TemplateUtils.getResourceBundle(subjectKey, locale, bundlePath);
     PwaNotificationMessage pwaNotificationMessage = new PwaNotificationMessage();
     pwaNotificationMessage.setTag(notification.getId());
@@ -76,15 +76,11 @@ public class DefaultPwaNotificationPlugin implements PwaNotificationPlugin {
     return pwaNotificationMessage;
   }
 
-  private String getDefaultKey(String key, String providerId) {
-    return MessageFormat.format(key, providerId);
+  public Locale getLocale(String username) {
+    return Locale.forLanguageTag(getLanguage(username));
   }
 
-  private Locale getLocale(NotificationInfo notification) {
-    return Locale.forLanguageTag(getLanguage(notification.getTo()));
-  }
-
-  private String getLanguage(String username) {
+  public String getLanguage(String username) {
     try {
       UserProfile userProfile = organizationService.getUserProfileHandler().findUserProfileByName(username);
       String language = userProfile == null ? null : userProfile.getAttribute(Constants.USER_LANGUAGE);
@@ -94,6 +90,10 @@ public class DefaultPwaNotificationPlugin implements PwaNotificationPlugin {
       LOG.warn("Error retrieving user {} language, use default language {}", username, defaultLanguage);
       return defaultLanguage;
     }
+  }
+
+  private String getDefaultKey(String key, String providerId) {
+    return MessageFormat.format(key, providerId);
   }
 
 }

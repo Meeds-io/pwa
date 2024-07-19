@@ -1,4 +1,5 @@
 self.addEventListener('install', event => self.skipWaiting());
+
 self.addEventListener('push', async (event) => {
   if (self?.Notification?.permission === 'granted') {
     const data = event?.data?.text?.() || {};
@@ -27,7 +28,7 @@ self.addEventListener('push', async (event) => {
         webNotification.icon = webNotification.icon || self.location.origin + '/pwa/rest/manifest/smallIcon?sizes=72x72';
         webNotification.data = {
           notificationId,
-          path: webNotification.url || '/',
+          url: self.location.origin + (webNotification.url || '/'),
         };
         delete webNotification.url;
         if (!webNotification.tag) {
@@ -60,34 +61,65 @@ self.addEventListener('push', async (event) => {
         if (!webNotification.silent) {
           delete webNotification.silent;
         }
+        if (!Notification.maxActions || !webNotification.actions) {
+          delete webNotification.actions;
+        } else if (webNotification.actions.length > Notification.maxActions) {
+          webNotification.actions = webNotification.actions.slice(0, Notification.maxActions);
+        }
         await self.registration.showNotification(title, webNotification);
-        const notifications = await self.registration.getNotifications();
-        navigator.setAppBadge(notifications?.length);
+        await refreshBadge();
       }
     }
   }
 });
+
 self.addEventListener('notificationclick', (event) => {
-  const notificationId = event.notification.data.notificationId;
-  const path = event.notification.data.path;
-  event.waitUntil(new Promise(async (resolve, reject) => {
-    await fetch(`/pwa/rest/notifications/${notificationId}`, {
-      method: 'PATCH',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: 'action=markRead'
-    });
+  const url = event.notification.data.url;
+  event.waitUntil(new Promise(async (resolve) => {
     event.notification.close();
-    const notifications = await self.registration.getNotifications();
-    navigator.setAppBadge(notifications?.length);
-    try {
-      clients.openWindow(self.location.origin + event.notification.data.path);
-    } catch(e) {
-      console.error(e);
-      reject(e);
+    if (event.action) {
+      await updateNotification(event.notification.data.notificationId, event.action);
+    } else {
+      try {
+        const windows = await clients.matchAll({ type: "window" });
+        const focused = windows
+          .some(w => w.url === url ? (windowClient.focus(), true) : false);
+        if (focused) {
+          console.debug('window with url ', url, ' focused');
+        } else {
+          console.debug('Open new window with url ', url);
+          await clients.openWindow(url);
+        }
+      } catch(e) {
+        console.error(e);
+      }
     }
     resolve();
   }));
 });
+
+self.addEventListener('notificationclose', (event) => {
+  event.waitUntil(new Promise(async (resolve) => {
+    await refreshBadge();
+    await updateNotification(event.notification.data.notificationId, 'markRead');
+    resolve();
+  }));
+});
+
+async function updateNotification(notificationId, action) {
+  await fetch(`/pwa/rest/notifications/${notificationId}`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: `action=${action}`
+  });
+}
+
+async function refreshBadge() {
+  if (navigator.setAppBadge) {
+    const notifications = await self.registration.getNotifications();
+    navigator?.setAppBadge?.(notifications?.length);
+  }
+}

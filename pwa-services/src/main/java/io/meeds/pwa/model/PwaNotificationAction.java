@@ -18,37 +18,22 @@
  */
 package io.meeds.pwa.model;
 
-import java.util.List;
-
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
-public class PwaNotificationMessage {
+@NoArgsConstructor
+public class PwaNotificationAction {
 
-  private String                      tag;
+  public PwaNotificationAction(String title, String action) {
+    this.title = title;
+    this.action = action;
+  }
 
-  private String                      image;
+  private String title;
 
-  private String                      lang;
+  private String action;
 
-  private String                      dir;
-
-  private String                      icon;
-
-  private String                      title;
-
-  private String                      body;
-
-  private String                      url;
-
-  private boolean                     vibrate;
-
-  private boolean                     renotify;
-
-  private boolean                     requireInteraction;
-
-  private boolean                     silent;
-
-  private List<PwaNotificationAction> actions;
+  private String type = "button";
 
 }
