@@ -92,16 +92,15 @@ public class PwaNotificationStorage {
       return;
     }
     String publicKey = getVapidPublicKeyString();
-    if (StringUtils.isNotBlank(publicKey)) {
-      return;
-    }
-    try {
-      KeyPair keyPair = VapidKeysUtils.generateKeys();
-      setVapidPublicKeyString(VapidKeysUtils.encode((ECPublicKey) keyPair.getPublic()));
-      setVapidPrivateKeyString(VapidKeysUtils.encode((ECPrivateKey) keyPair.getPrivate()));
-    } catch (Exception e) {
-      LOG.warn("Error while generating keys for Push Notifications, it will be disabled until resolving the error", e);
-      this.enabled = false;
+    if (StringUtils.isBlank(publicKey)) {
+      try {
+        KeyPair keyPair = VapidKeysUtils.generateKeys();
+        setVapidPublicKeyString(VapidKeysUtils.encode((ECPublicKey) keyPair.getPublic()));
+        setVapidPrivateKeyString(VapidKeysUtils.encode((ECPrivateKey) keyPair.getPrivate()));
+      } catch (Exception e) {
+        LOG.warn("Error while generating keys for Push Notifications, it will be disabled until resolving the error", e);
+        this.enabled = false;
+      }
     }
   }
 
