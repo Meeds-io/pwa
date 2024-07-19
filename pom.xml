@@ -36,7 +36,8 @@
   <name>Meeds - PWA - Parent POM</name>
   <description>Progressive Web Application addon for Meeds based products</description>
   <modules>
-    <module>pwa-services</module>
+    <module>pwa-service</module>
+    <module>pwa-plugin</module>
     <module>pwa-webapp</module>
     <module>pwa-packaging</module>
   </modules>
@@ -81,6 +82,11 @@
       <dependency>
         <groupId>${project.groupId}</groupId>
         <artifactId>pwa-service</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>pwa-plugin</artifactId>
         <version>${project.version}</version>
       </dependency>
 

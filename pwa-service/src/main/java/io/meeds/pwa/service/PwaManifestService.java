@@ -78,7 +78,7 @@ public class PwaManifestService {
 
   private static final String   RESET_ATTACHMENT_ID        = "0";
 
-  public static final String    DEPRECATED_PUSH_CHANNEL_ID = "PUSH_CHANNEL";
+  private static final String   DEPRECATED_PUSH_CHANNEL_ID = "PUSH_CHANNEL";
 
   private static final String   PWA_LARGE_ICON_BASE_PATH   = "/pwa/rest/manifest/largeIcon?v=";               // NOSONAR
 
