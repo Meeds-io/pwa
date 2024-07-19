@@ -28,7 +28,6 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.ResourceBundle;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -347,19 +346,8 @@ public class PwaManifestService {
 
   private void computePwaDescription() {
     if (pwaManifest.getDescription() == null) {
-      Locale defaultLocale = Locale.forLanguageTag(brandingService.getDefaultLanguage());
-      String[] sharedResourceBundleNames = resourceBundleService.getSharedResourceBundleNames();
-      ResourceBundle resourceBundle = resourceBundleService.getResourceBundle(sharedResourceBundleNames,
-                                                                              defaultLocale);
-      if (resourceBundle.containsKey(pwaManifest.getDescriptionKey())) {
-        pwaManifest.setDescription(resourceBundle.getString(pwaManifest.getDescriptionKey()));
-      } else if (!Locale.ENGLISH.equals(defaultLocale)) {
-        resourceBundle = resourceBundleService.getResourceBundle(sharedResourceBundleNames,
-                                                                 Locale.ENGLISH);
-        if (resourceBundle.containsKey(pwaManifest.getDescriptionKey())) {
-          pwaManifest.setDescription(resourceBundle.getString(pwaManifest.getDescriptionKey()));
-        }
-      }
+      pwaManifest.setDescription(resourceBundleService.getSharedString(pwaManifest.getDescriptionKey(),
+                                                                       Locale.forLanguageTag(brandingService.getDefaultLanguage())));
     }
   }
 

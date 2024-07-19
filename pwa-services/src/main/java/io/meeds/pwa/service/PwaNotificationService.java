@@ -21,6 +21,7 @@ package io.meeds.pwa.service;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -30,6 +31,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpResponse;
@@ -48,7 +50,9 @@ import org.exoplatform.commons.utils.MailUtils;
 import org.exoplatform.services.listener.ListenerService;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
+import org.exoplatform.services.resources.ResourceBundleService;
 
+import io.meeds.pwa.model.PwaNotificationAction;
 import io.meeds.pwa.model.PwaNotificationMessage;
 import io.meeds.pwa.model.UserPushSubscription;
 import io.meeds.pwa.plugin.DefaultPwaNotificationPlugin;
@@ -63,23 +67,25 @@ import nl.martijndwars.webpush.PushService;
 @Service
 public class PwaNotificationService {
 
-  private static final String                   PWA_NOTIFICATION_CREATED               = "pwa.notification.created";
+  private static final String                   PWA_NOTIFICATION_CREATED                = "pwa.notification.created";
 
-  private static final String                   PWA_NOTIFICATION_DELETED               = "pwa.notification.deleted";
+  private static final String                   PWA_NOTIFICATION_DELETED                = "pwa.notification.deleted";
 
-  private static final String                   PWA_NOTIFICATION_ALL_DELETED           = "pwa.notification.allDeleted";
+  private static final String                   PWA_NOTIFICATION_ALL_DELETED            = "pwa.notification.allDeleted";
 
-  private static final String                   PWA_NOTIFICATION_OPEN_UI_ACTION        = "open";
+  private static final String                   PWA_NOTIFICATION_OPEN_UI_ACTION         = "open";
 
-  private static final String                   PWA_NOTIFICATION_CLOSE_UI_ACTION       = "close";
+  private static final String                   PWA_NOTIFICATION_CLOSE_UI_ACTION        = "close";
 
-  private static final String                   PWA_NOTIFICATION_CLOSE_ALL_UI_ACTION   = "closeAll";
+  private static final String                   PWA_NOTIFICATION_CLOSE_ALL_UI_ACTION    = "closeAll";
 
-  private static final String                   PWA_NOTIFICATION_MARK_READ_USER_ACTION = "markRead";
+  private static final String                   PWA_NOTIFICATION_MARK_READ_USER_ACTION  = "markRead";
 
-  private static final Random                   RANDOM                                 = new Random();
+  private static final String                   PWA_NOTIFICATION_MARK_READ_ACTION_LABEL = "pwa.notification.action.markAsRead";
 
-  private static final Log                      LOG                                    =
+  private static final Random                   RANDOM                                  = new Random();
+
+  private static final Log                      LOG                                     =
                                                     ExoLogger.getLogger(PwaNotificationService.class);
 
   @Autowired
@@ -95,6 +101,9 @@ public class PwaNotificationService {
   private ListenerService                       listenerService;
 
   @Autowired
+  private ResourceBundleService                 resourceBundleService;
+
+  @Autowired
   private DefaultPwaNotificationPlugin          defaultPwaNotificationPlugin;
 
   private PushService                           pushService;
@@ -108,7 +117,7 @@ public class PwaNotificationService {
   @Value("${pwa.notifications.email:}")
   private String                                email;
 
-  private Map<PluginKey, PwaNotificationPlugin> plugins                                = new ConcurrentHashMap<>();
+  private Map<PluginKey, PwaNotificationPlugin> plugins                                 = new ConcurrentHashMap<>();
 
   private ScheduledExecutorService              executorService;
 
@@ -136,7 +145,9 @@ public class PwaNotificationService {
     if (notificationPlugin == null) {
       notificationPlugin = defaultPwaNotificationPlugin;
     }
-    return notificationPlugin.process(notification);
+    PwaNotificationMessage notificationMessage = notificationPlugin.process(notification);
+    addDefaultNotificationAction(notificationMessage, username);
+    return notificationMessage;
   }
 
   public void updateNotification(long webNotificationId, String action, String username) throws ObjectNotFoundException,
@@ -246,7 +257,14 @@ public class PwaNotificationService {
                             String endpoint = subscription.getEndpoint();
                             HttpResponse httpResponse = sendPushMessage(subscription, payload.getBytes());
                             StatusLine status = httpResponse.getStatusLine();
-                            if (status.getStatusCode() < 200 || status.getStatusCode() > 299) {
+                            if (status.getStatusCode() == 410) { // Outdated
+                                                                 // subscription
+                              LOG.info("Subscription of user '{}' on device with id '{}' using url '{}' is outdated, delete it",
+                                       username,
+                                       subscription.getId(),
+                                       endpoint.substring(0, endpoint.indexOf("/", 15)));
+                              pwaSubscriptionService.deleteSubscription(subscription.getId(), username);
+                            } else if (status.getStatusCode() < 200 || status.getStatusCode() > 299) {
                               InputStream inputStream = httpResponse.getEntity() == null ? null :
                                                                                          httpResponse.getEntity().getContent();
                               try {
@@ -301,6 +319,19 @@ public class PwaNotificationService {
       pushService.setSubject("mailto:" + getContactEmail());
     }
     return pushService;
+  }
+
+  private void addDefaultNotificationAction(PwaNotificationMessage notificationMessage, String username) {
+    List<PwaNotificationAction> notificationActions = notificationMessage.getActions();
+    if (CollectionUtils.isEmpty(notificationMessage.getActions())
+        || notificationActions.stream()
+                              .noneMatch(a -> StringUtils.equals(a.getAction(), PWA_NOTIFICATION_MARK_READ_USER_ACTION))) {
+      notificationActions = notificationActions == null ? new ArrayList<>() : new ArrayList<>(notificationActions);
+      notificationActions.add(new PwaNotificationAction(resourceBundleService.getSharedString(PWA_NOTIFICATION_MARK_READ_ACTION_LABEL,
+                                                                                              defaultPwaNotificationPlugin.getLocale(username)),
+                                                        PWA_NOTIFICATION_MARK_READ_USER_ACTION));
+      notificationMessage.setActions(notificationActions);
+    }
   }
 
   private String getContactEmail() {
