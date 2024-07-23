@@ -48,8 +48,8 @@
     <tag>HEAD</tag>
   </scm>
   <properties>
-    <io.meeds.social.version>7.0.x-meed-SNAPSHOT</io.meeds.social.version>
-    <addon.meeds.gamification.version>7.0.x-meed-SNAPSHOT</addon.meeds.gamification.version>
+    <io.meeds.social.version>7.0.0-meed-20240723</io.meeds.social.version>
+    <addon.meeds.gamification.version>7.0.0-meed-20240723</addon.meeds.gamification.version>
 
     <nl.martijndwars.web-push.version>5.1.1</nl.martijndwars.web-push.version>
     <org.bitbucket.b_c.version>0.9.6</org.bitbucket.b_c.version>
