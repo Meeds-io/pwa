@@ -64,6 +64,9 @@ public class WebNotificationSentListener implements ListenerBase<Object, Object>
 
   @Override
   public void onEvent(Event<Object, Object> event) throws Exception {
+    if (event.getEventName() == null) {
+      return;
+    }
     try {
       switch (event.getEventName()) {
       case NOTIFICATION_WEB_SAVED_EVENT: {
