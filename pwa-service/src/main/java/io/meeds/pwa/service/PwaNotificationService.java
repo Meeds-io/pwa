@@ -20,12 +20,12 @@ package io.meeds.pwa.service;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.security.KeyPair;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
@@ -43,7 +43,6 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.exoplatform.commons.api.notification.model.NotificationInfo;
 import org.exoplatform.commons.api.notification.service.WebNotificationService;
 import org.exoplatform.commons.exception.ObjectNotFoundException;
-import org.exoplatform.commons.utils.MailUtils;
 import org.exoplatform.portal.Constants;
 import org.exoplatform.services.listener.ListenerService;
 import org.exoplatform.services.log.ExoLogger;
@@ -69,26 +68,29 @@ import nl.martijndwars.webpush.PushService;
 @Service
 public class PwaNotificationService {
 
-  private static final String          PWA_NOTIFICATION_CREATED                = "pwa.notification.created";
+  public static final String           PWA_NOTIFICATION_CREATED                = "pwa.notification.created";
 
-  private static final String          PWA_NOTIFICATION_DELETED                = "pwa.notification.deleted";
+  public static final String           PWA_NOTIFICATION_DELETED                = "pwa.notification.deleted";
 
-  private static final String          PWA_NOTIFICATION_ALL_DELETED            = "pwa.notification.allDeleted";
+  public static final String           PWA_NOTIFICATION_ALL_DELETED            = "pwa.notification.allDeleted";
 
-  private static final String          PWA_NOTIFICATION_OPEN_UI_ACTION         = "open";
+  public static final String           PWA_NOTIFICATION_OPEN_UI_ACTION         = "open";
 
-  private static final String          PWA_NOTIFICATION_CLOSE_UI_ACTION        = "close";
+  public static final String           PWA_NOTIFICATION_CLOSE_UI_ACTION        = "close";
 
-  private static final String          PWA_NOTIFICATION_CLOSE_ALL_UI_ACTION    = "closeAll";
+  public static final String           PWA_NOTIFICATION_CLOSE_ALL_UI_ACTION    = "closeAll";
 
-  private static final String          PWA_NOTIFICATION_MARK_READ_USER_ACTION  = "markRead";
+  public static final String           PWA_NOTIFICATION_MARK_READ_USER_ACTION  = "markRead";
 
-  private static final String          PWA_NOTIFICATION_MARK_READ_ACTION_LABEL = "pwa.notification.action.markAsRead";
+  public static final String           PWA_NOTIFICATION_MARK_READ_ACTION_LABEL = "pwa.notification.action.markAsRead";
 
-  private static final Random          RANDOM                                  = new Random();
+  public static final Random           RANDOM                                  = new Random();
 
   private static final Log             LOG                                     =
                                            ExoLogger.getLogger(PwaNotificationService.class);
+
+  @Autowired
+  private PwaManifestService           pwaManifestService;
 
   @Autowired
   private PwaSubscriptionService       pwaSubscriptionService;
@@ -114,6 +116,7 @@ public class PwaNotificationService {
   @Autowired
   private DefaultPwaNotificationPlugin defaultPwaNotificationPlugin;
 
+  @Autowired
   private PushService                  pushService;
 
   @Value("${pwa.notifications.enabled:true}")
@@ -121,9 +124,6 @@ public class PwaNotificationService {
 
   @Value("${pwa.notifications.pool.size:5}")
   private int                          poolSize;
-
-  @Value("${pwa.notifications.email:}")
-  private String                       email;
 
   @Value("${pwa.notifications.maxBodyLength:75}")
   private int                          maxBodyLength;
@@ -134,7 +134,7 @@ public class PwaNotificationService {
   @Value("${pwa.notifications.renotify:true}")
   private boolean                      renotify;
 
-  @Value("${pwa.notifications.silent:true}")
+  @Value("${pwa.notifications.silent:false}")
   private boolean                      silent;
 
   @Autowired
@@ -169,7 +169,7 @@ public class PwaNotificationService {
                                                       .orElse(defaultPwaNotificationPlugin);
     LocaleConfig localeConfig = getLocaleConfig(username);
     PwaNotificationMessage notificationMessage = notificationPlugin.process(notification, localeConfig);
-    addDefaultNotificationSettings(notificationMessage, notification, localeConfig);
+    setDefaultNotificationMessageProperties(notificationMessage, notification, localeConfig);
     return notificationMessage;
   }
 
@@ -198,8 +198,12 @@ public class PwaNotificationService {
    * 
    * @param webNotificationId
    */
-  public void create(long webNotificationId) {
-    executorService.schedule(() -> this.sendCreateNotification(webNotificationId), 1, TimeUnit.SECONDS);
+  public ScheduledFuture<?> create(long webNotificationId) { // NOSONAR
+    if (pwaManifestService.isPwaEnabled()) {
+      return executorService.schedule(() -> this.sendCreateNotification(webNotificationId), 1, TimeUnit.SECONDS);
+    } else {
+      return null;
+    }
   }
 
   /**
@@ -207,9 +211,14 @@ public class PwaNotificationService {
    * dismissed yet
    * 
    * @param webNotificationId
+   * @return
    */
-  public void delete(long webNotificationId) {
-    executorService.schedule(() -> this.sendCloseNotification(webNotificationId), 1, TimeUnit.SECONDS);
+  public ScheduledFuture<?> delete(long webNotificationId) { // NOSONAR
+    if (pwaManifestService.isPwaEnabled()) {
+      return executorService.schedule(() -> this.sendCloseNotification(webNotificationId), 1, TimeUnit.SECONDS);
+    } else {
+      return null;
+    }
   }
 
   /**
@@ -217,8 +226,12 @@ public class PwaNotificationService {
    * 
    * @param username
    */
-  public void deleteAll(String username) {
-    executorService.schedule(() -> this.sendCloseAllNotifications(username), 1, TimeUnit.SECONDS);
+  public ScheduledFuture<?> deleteAll(String username) { // NOSONAR
+    if (pwaManifestService.isPwaEnabled()) {
+      return executorService.schedule(() -> this.sendCloseAllNotifications(username), 1, TimeUnit.SECONDS);
+    } else {
+      return null;
+    }
   }
 
   /**
@@ -228,35 +241,30 @@ public class PwaNotificationService {
     return pwaNotificationStorage.getVapidPublicKeyString();
   }
 
-  private void sendCloseAllNotifications(String username) {
+  private int sendCloseAllNotifications(String username) {
     int sentCount = sendNotification(RANDOM.nextLong(), PWA_NOTIFICATION_CLOSE_ALL_UI_ACTION, username);
     if (sentCount > 0) {
       listenerService.broadcast(PWA_NOTIFICATION_ALL_DELETED, username, null);
     }
+    return sentCount;
   }
 
-  private void sendCloseNotification(Long webNotificationId) {
+  private int sendCloseNotification(Long webNotificationId) {
     NotificationInfo notification = webNotificationService.getNotificationInfo(String.valueOf(webNotificationId));
-    if (notification == null) {
-      LOG.warn("Can't send notification closing event since notification '{}' wasn't found", webNotificationId);
-      return;
-    }
     int sentCount = sendNotification(notification, PWA_NOTIFICATION_CLOSE_UI_ACTION);
     if (sentCount > 0) {
       listenerService.broadcast(PWA_NOTIFICATION_DELETED, webNotificationId, null);
     }
+    return sentCount;
   }
 
-  private void sendCreateNotification(Long webNotificationId) {
+  private int sendCreateNotification(Long webNotificationId) {
     NotificationInfo notification = webNotificationService.getNotificationInfo(String.valueOf(webNotificationId));
-    if (notification == null) {
-      LOG.warn("Can't send notification creation event since notification '{}' wasn't found", webNotificationId);
-      return;
-    }
     int sentCount = sendNotification(notification, PWA_NOTIFICATION_OPEN_UI_ACTION);
     if (sentCount > 0) {
       listenerService.broadcast(PWA_NOTIFICATION_CREATED, webNotificationId, null);
     }
+    return sentCount;
   }
 
   private int sendNotification(NotificationInfo notification, String action) {
@@ -292,7 +300,7 @@ public class PwaNotificationService {
                               LOG.info("Subscription of user '{}' on device with id '{}' using url '{}' is outdated, delete it",
                                        username,
                                        subscription.getId(),
-                                       endpoint.substring(0, endpoint.indexOf("/", 15)));
+                                       getSubscriptionDomain(endpoint));
                               pwaSubscriptionService.deleteSubscription(subscription.getId(), username);
                             } else if (status.getStatusCode() < 200 || status.getStatusCode() > 299) {
                               InputStream inputStream = httpResponse.getEntity() == null ? null :
@@ -303,7 +311,7 @@ public class PwaNotificationService {
                                          username,
                                          action,
                                          subscription.getId(),
-                                         endpoint.substring(0, endpoint.indexOf("/", 15)),
+                                         getSubscriptionDomain(endpoint),
                                          status.getStatusCode(),
                                          status.getReasonPhrase(),
                                          inputStream == null ? null : IOUtils.toString(inputStream, StandardCharsets.UTF_8));
@@ -318,7 +326,7 @@ public class PwaNotificationService {
                                        username,
                                        action,
                                        subscription.getId(),
-                                       endpoint.substring(0, endpoint.indexOf("/", 15)));
+                                       getSubscriptionDomain(endpoint));
                               return 1;
                             }
                           } catch (Exception e) {
@@ -339,21 +347,12 @@ public class PwaNotificationService {
                                                  sub.authAsBytes(),
                                                  payload);
     // Send the notification
-    return getPushService().send(notification);
+    return pushService.send(notification);
   }
 
-  private PushService getPushService() throws Exception { // NOSONAR
-    if (pushService == null) {
-      pushService = new PushService(new KeyPair(pwaNotificationStorage.getVapidPublicKey(),
-                                                pwaNotificationStorage.getVapidPrivateKey()));
-      pushService.setSubject("mailto:" + getContactEmail());
-    }
-    return pushService;
-  }
-
-  private void addDefaultNotificationSettings(PwaNotificationMessage notificationMessage,
-                                              NotificationInfo notification,
-                                              LocaleConfig localeConfig) {
+  private void setDefaultNotificationMessageProperties(PwaNotificationMessage notificationMessage,
+                                                       NotificationInfo notification,
+                                                       LocaleConfig localeConfig) {
     List<PwaNotificationAction> notificationActions = notificationMessage.getActions();
     if (CollectionUtils.isEmpty(notificationMessage.getActions())
         || notificationActions.stream()
@@ -392,10 +391,8 @@ public class PwaNotificationService {
     }
   }
 
-  private String getContactEmail() {
-    if (StringUtils.isBlank(email)) {
-      email = MailUtils.getSenderEmail();
-    }
-    return email;
+  private String getSubscriptionDomain(String endpoint) {
+    return endpoint.substring(0, endpoint.indexOf("/", 15));
   }
+
 }

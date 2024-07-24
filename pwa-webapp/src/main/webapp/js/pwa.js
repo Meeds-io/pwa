@@ -19,8 +19,8 @@
  */
 
 (function(exoi18n) {
-  const pwaMode = !!window?.matchMedia('(display-mode: standalone)')?.matches;
-  if (!pwaMode && eXo.env.portal.userName) {
+  const standaloneMode = !!window?.matchMedia('(display-mode: standalone)')?.matches;
+  if (!standaloneMode && eXo.env.portal.pwaEnabled && eXo.env.portal.userName) {
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       window.deferredPwaPrompt = e;
@@ -56,10 +56,12 @@
   }
 
   async function init() {
-    if (!pwaMode || !('serviceWorker' in navigator) || !eXo.env.portal.userName)  {
-      return;
+    if (standaloneMode
+      && eXo.env.portal.userName
+      && eXo.env.portal.pwaEnabled
+      && 'serviceWorker' in navigator)  {
+      initSubscription();
     }
-    initSubscription();
   }
 
   async function initSubscription() {
@@ -98,6 +100,9 @@
       } else {
         const i18n = await exoi18n.loadLanguageAsync(eXo.env.portal.language, `/social-portlet/i18n/locale.portlet.Portlets?lang=${eXo.env.portal.language}`);
         window.setTimeout(() => {
+          if (!eXo.env.portal.pwaEnabled) {
+            return;
+          }
           document.dispatchEvent(new CustomEvent('alert-message', {detail:{
             alertMessage: i18n.messages?.[eXo.env.portal.language]?.['pwa.feature.allowNotifications'],
             alertLinkText: i18n.messages?.[eXo.env.portal.language]?.['pwa.feature.allowNotifications.chooseOption'],

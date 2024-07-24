@@ -277,6 +277,7 @@ export default {
             };
             this.originalManifest = JSON.parse(JSON.stringify(this.manifest));
           }
+          eXo.env.portal.pwaEnabled = this.manifest.enabled;
         })
         .finally(() => this.loading = false);
     },

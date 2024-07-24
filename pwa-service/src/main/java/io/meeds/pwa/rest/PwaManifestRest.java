@@ -88,9 +88,10 @@ public class PwaManifestRest {
                           @ApiResponse(responseCode = "204", description = "Manifest information updated"),
   })
   public void updateManifest(
+                             WebRequest request,
                              @RequestBody
                              PwaManifestUpdate manifestUpdate) {
-    pwaManifestService.updateManifest(manifestUpdate);
+    pwaManifestService.updateManifest(manifestUpdate, request.getRemoteUser());
   }
 
   @GetMapping("/largeIcon")
