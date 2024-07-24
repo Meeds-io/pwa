@@ -44,14 +44,15 @@ public class PwaSubscriptionService {
 
   public void createSubscription(UserPushSubscription subscription, String username) {
     List<UserPushSubscription> subscriptions = pwaSubscriptionStorage.get(username);
-    if (subscriptions.stream().noneMatch(s -> StringUtils.equals(s.getEndpoint(), subscription.getEndpoint()))) {
+    String endpoint = subscription.getEndpoint();
+    if (subscriptions.stream().noneMatch(s -> StringUtils.equals(s.getEndpoint(), endpoint))) {
       LOG.info("Create new subscription with id {} for user {} and endpoint {}",
                subscription.getId(),
                username,
-               subscription.getEndpoint());
+               getSubscriptionDomain(endpoint));
       pwaSubscriptionStorage.create(subscription, username);
     } else {
-      LOG.info("Subscription for endpoint {} already exists for user {}", subscription.getEndpoint(), username);
+      LOG.debug("Subscription for endpoint {} already exists for user {}", getSubscriptionDomain(endpoint), username);
     }
   }
 
@@ -63,6 +64,10 @@ public class PwaSubscriptionService {
   public void deleteAllSubscriptions(String username) {
     pwaSubscriptionStorage.deleteAll(username);
     LOG.info("Delete all subscriptions for user {}", username);
+  }
+
+  private String getSubscriptionDomain(String endpoint) {
+    return endpoint.substring(0, endpoint.indexOf("/", 15));
   }
 
 }

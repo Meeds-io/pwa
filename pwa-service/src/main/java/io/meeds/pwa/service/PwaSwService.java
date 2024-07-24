@@ -36,20 +36,15 @@ import org.exoplatform.services.log.Log;
 @Service
 public class PwaSwService {
 
-  private static final Log               LOG                       = ExoLogger.getLogger(PwaSwService.class);
+  private static final Log               LOG                     = ExoLogger.getLogger(PwaSwService.class);
 
-  private static final boolean           DEVELOPPING               = PropertyManager.isDevelopping();
+  private static final boolean           DEVELOPPING             = PropertyManager.isDevelopping();
 
-  private static final String            VAPID_PUBLIC_KEY_VARIABLE = "@vapidPublicKey@";
+  private static final String            DEVELOPMENT_VARIABLE    = "@development@";
 
-  private static final String            DEVELOPMENT_VARIABLE      = "@development@";
+  private static final String            ASSETS_VERSION_VARIABLE = "@assets-version@";
 
-  private static final String            ASSETS_VERSION_VARIABLE   = "@assets-version@";
-
-  private static AtomicReference<String> serviceWorkerContent      = new AtomicReference<>();
-
-  @Autowired
-  private PwaNotificationService         pwaNotificationService;
+  private static AtomicReference<String> serviceWorkerContent    = new AtomicReference<>();
 
   @Autowired
   private ConfigurationManager           configurationManager;
@@ -72,8 +67,9 @@ public class PwaSwService {
   }
 
   private String replaceVariables(String content) {
-    content = content.replace(VAPID_PUBLIC_KEY_VARIABLE, pwaNotificationService.getVapidPublicKeyString().replace("=", ""));
-    content = content.replace(ASSETS_VERSION_VARIABLE, ResourceRequestFilter.version);
+    if (ResourceRequestFilter.version != null) {
+      content = content.replace(ASSETS_VERSION_VARIABLE, ResourceRequestFilter.version);
+    }
     content = content.replace(DEVELOPMENT_VARIABLE, String.valueOf(DEVELOPPING));
     return content;
   }
