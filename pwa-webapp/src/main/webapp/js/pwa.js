@@ -19,11 +19,13 @@
  */
 
 (function(exoi18n) {
-  const standaloneMode = !!window?.matchMedia('(display-mode: standalone)')?.matches;
-  if (!standaloneMode && eXo.env.portal.pwaEnabled && eXo.env.portal.userName) {
+  if (!window?.matchMedia('(display-mode: standalone)')?.matches
+    && eXo.env.portal.pwaEnabled
+    && eXo.env.portal.userName) {
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       window.deferredPwaPrompt = e;
+      unsubscribe();
       if (window.localStorage && !window.localStorage.getItem(`pwa.suggested-${eXo.env.portal.userName}`)) {
         window.deferredPwaPromptTimeout = window.setTimeout(async () => {
           const i18n = await exoi18n.loadLanguageAsync(eXo.env.portal.language, `/social-portlet/i18n/locale.portlet.Portlets?lang=${eXo.env.portal.language}`);
@@ -46,17 +48,23 @@
             },
           }}));
         }, 5000);
-        // Once installed clear timeout and close alert
-        window.addEventListener('appinstalled', () => {
-          window.clearTimeout(window.deferredPwaPromptTimeout);
-          document.dispatchEvent(new CustomEvent('closet-alert-message'));
-        });
       }
     });
+  } else if (!eXo.env.portal.pwaEnabled) {
+    unsubscribe();
   }
 
+  // Once installed clear timeout and close alert
+  window.addEventListener('appinstalled', () => {
+    if (window.deferredPwaPromptTimeout) {
+      window.clearTimeout(window.deferredPwaPromptTimeout);
+    }
+    document.dispatchEvent(new CustomEvent('closet-alert-message'));
+    initSubscription();
+  });
+
   async function init() {
-    if (standaloneMode
+    if (window?.matchMedia('(display-mode: standalone)')?.matches
       && eXo.env.portal.userName
       && eXo.env.portal.pwaEnabled
       && 'serviceWorker' in navigator)  {
@@ -154,6 +162,30 @@
         }),
       })
         .then(() => window.localStorage.setItem(`pwa.notification.endpoint-${eXo.env.portal.userName}`, subscription.endpoint));
+    }
+  }
+
+  async function unsubscribe() {
+    const registration = await navigator?.serviceWorker?.getRegistration?.();
+    if (registration) {
+      await registration.unregister();
+      const subscriptionId = window.localStorage.getItem(`pwa.notification.subscription.id-${eXo.env.portal.userName}`);
+      if (subscriptionId) {
+        await fetch('/pwa/rest/subscriptions', {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            id: subscriptionId,
+          }),
+        })
+          .finally(() => {
+            window.localStorage.removeItem(`pwa.notification.subscription.id-${eXo.env.portal.userName}`);
+            window.localStorage.removeItem(`pwa.notification.endpoint-${eXo.env.portal.userName}`);
+          });
+      }
     }
   }
 
