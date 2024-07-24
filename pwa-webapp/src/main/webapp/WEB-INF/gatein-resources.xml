@@ -70,6 +70,9 @@
       <depends>
         <module>extensionRegistry</module>
       </depends>
+      <depends>
+        <module>pwa</module>
+      </depends>
     </module>
   </portlet>
 
