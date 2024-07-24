@@ -18,10 +18,10 @@
  */
 package io.meeds.pwa.service;
 
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -30,7 +30,6 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
@@ -83,6 +82,24 @@ public class PwaNotificationService {
   public static final String           PWA_NOTIFICATION_MARK_READ_USER_ACTION  = "markRead";
 
   public static final String           PWA_NOTIFICATION_MARK_READ_ACTION_LABEL = "pwa.notification.action.markAsRead";
+
+  public static final String           EVENT_NOTIFICATION_SENT                 = "pwa.notificationSent";
+
+  public static final String           EVENT_NOTIFICATION_RESPONSE_ERROR       = "pwa.notificationResponseError";
+
+  public static final String           EVENT_NOTIFICATION_SENDING_ERROR        = "pwa.notificationSendingError";
+
+  public static final String           EVENT_OUTDATED_SUBSCRIPTION             = "pwa.outdatedSubscription";
+
+  public static final String           EVENT_ERROR_PARAM_NAME                  = "error";
+
+  public static final String           EVENT_SUBSCRIPTION_PARAM_NAME           = "subscription";
+
+  public static final String           EVENT_HTTP_RESPONSE_PARAM_NAME          = "httpResponse";
+
+  public static final String           EVENT_NOTIFICATION_ID_PARAM_NAME        = "notificationId";
+
+  public static final String           EVENT_ACTION_PARAM_NAME                 = "action";
 
   public static final Random           RANDOM                                  = new Random();
 
@@ -292,41 +309,37 @@ public class PwaNotificationService {
                         .map(subscription -> {
                           try {
                             String payload = notificationId + ":" + action;
-                            String endpoint = subscription.getEndpoint();
                             HttpResponse httpResponse = sendPushMessage(subscription, payload.getBytes());
                             StatusLine status = httpResponse.getStatusLine();
-                            if (status.getStatusCode() == 410) { // Outdated
-                                                                 // subscription
-                              LOG.info("Subscription of user '{}' on device with id '{}' using url '{}' is outdated, delete it",
-                                       username,
-                                       subscription.getId(),
-                                       getSubscriptionDomain(endpoint));
-                              pwaSubscriptionService.deleteSubscription(subscription.getId(), username);
-                            } else if (status.getStatusCode() < 200 || status.getStatusCode() > 299) {
-                              InputStream inputStream = httpResponse.getEntity() == null ? null :
-                                                                                         httpResponse.getEntity().getContent();
+                            if (status.getStatusCode() == 410) {
+                              // Outdated subscription
                               try {
-                                LOG.warn("Notification with id '{}' for user '{}' with action '{}' on device with id '{}' using url '{}' not sent with error response code '{} {}' and message '{}'",
-                                         notificationId,
-                                         username,
-                                         action,
-                                         subscription.getId(),
-                                         getSubscriptionDomain(endpoint),
-                                         status.getStatusCode(),
-                                         status.getReasonPhrase(),
-                                         inputStream == null ? null : IOUtils.toString(inputStream, StandardCharsets.UTF_8));
+                                pwaSubscriptionService.deleteSubscription(subscription.getId(), username, false);
                               } finally {
-                                if (inputStream != null) {
-                                  inputStream.close();
-                                }
+                                broadcastEvent(EVENT_OUTDATED_SUBSCRIPTION,
+                                               notificationId,
+                                               action,
+                                               username,
+                                               subscription,
+                                               httpResponse,
+                                               null);
                               }
+                            } else if (status.getStatusCode() < 200 || status.getStatusCode() > 299) {
+                              broadcastEvent(EVENT_NOTIFICATION_RESPONSE_ERROR,
+                                             notificationId,
+                                             action,
+                                             username,
+                                             subscription,
+                                             httpResponse,
+                                             null);
                             } else {
-                              LOG.info("Notification with id '{}' for user '{}' with action '{}' on device with id '{}' using url '{}' sent successfully",
-                                       notificationId,
-                                       username,
-                                       action,
-                                       subscription.getId(),
-                                       getSubscriptionDomain(endpoint));
+                              broadcastEvent(EVENT_NOTIFICATION_SENT,
+                                             notificationId,
+                                             action,
+                                             username,
+                                             subscription,
+                                             httpResponse,
+                                             null);
                               return 1;
                             }
                           } catch (Exception e) {
@@ -334,6 +347,14 @@ public class PwaNotificationService {
                                      notificationId,
                                      username,
                                      e);
+
+                            broadcastEvent(EVENT_NOTIFICATION_SENDING_ERROR,
+                                           notificationId,
+                                           action,
+                                           username,
+                                           subscription,
+                                           null,
+                                           e.getMessage());
                           }
                           return 0;
                         })
@@ -391,8 +412,20 @@ public class PwaNotificationService {
     }
   }
 
-  private String getSubscriptionDomain(String endpoint) {
-    return endpoint.substring(0, endpoint.indexOf("/", 15));
+  private void broadcastEvent(String eventName,
+                              long notificationId,
+                              String action,
+                              String username,
+                              UserPushSubscription subscription,
+                              HttpResponse httpResponse,
+                              String errorMessage) {
+    Map<String, Object> params = new HashMap<>();
+    params.put(EVENT_SUBSCRIPTION_PARAM_NAME, subscription);
+    params.put(EVENT_ERROR_PARAM_NAME, errorMessage);
+    params.put(EVENT_ACTION_PARAM_NAME, action);
+    params.put(EVENT_NOTIFICATION_ID_PARAM_NAME, notificationId);
+    params.put(EVENT_HTTP_RESPONSE_PARAM_NAME, httpResponse);
+    listenerService.broadcast(eventName, username, params);
   }
 
 }
