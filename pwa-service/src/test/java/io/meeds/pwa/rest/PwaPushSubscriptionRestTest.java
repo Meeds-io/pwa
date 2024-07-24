@@ -110,6 +110,7 @@ public class PwaPushSubscriptionRestTest {
                                                             .content(asJsonString(userPushSubscription))
                                                             .contentType(MediaType.APPLICATION_JSON));
     response.andExpect(status().isOk());
+    userPushSubscription.setDeviceType("Robot");
     verify(pwaSubscriptionService).createSubscription(userPushSubscription, SIMPLE_USER);
   }
 

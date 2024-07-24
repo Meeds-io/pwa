@@ -41,6 +41,10 @@
       <artifactId>social-component-notification</artifactId>
     </dependency>
     <dependency>
+      <groupId>io.meeds.analytics</groupId>
+      <artifactId>analytics-api</artifactId>
+    </dependency>
+    <dependency>
       <groupId>io.meeds.gamification</groupId>
       <artifactId>gamification-services</artifactId>
     </dependency>
