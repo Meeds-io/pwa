@@ -68,12 +68,19 @@ public class PwaSubscriptionStorage {
                        SettingValue.create(JsonUtils.toJsonString(subscription)));
   }
 
-  public void delete(String id, String username) {
-    settingService.remove(Context.USER.id(username), PWA_SUBSCRIPTION_SCOPE, id);
+  public UserPushSubscription delete(String id, String username) {
+    UserPushSubscription subscription = get(id, username);
+    if (subscription != null) {
+      settingService.remove(Context.USER.id(username), PWA_SUBSCRIPTION_SCOPE, id);
+    }
+    return subscription;
   }
 
-  public void deleteAll(String username) {
-    settingService.remove(Context.USER.id(username), PWA_SUBSCRIPTION_SCOPE);
+  public UserPushSubscription get(String id, String username) {
+    SettingValue<?> settingValue = settingService.get(Context.USER.id(username), PWA_SUBSCRIPTION_SCOPE, id);
+    return settingValue == null || settingValue.getValue() == null ? null :
+                                                                   JsonUtils.fromJsonString(settingValue.getValue().toString(),
+                                                                                            UserPushSubscription.class);
   }
 
 }
