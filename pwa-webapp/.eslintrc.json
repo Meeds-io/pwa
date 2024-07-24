@@ -4,5 +4,8 @@
   ],
   "rules": {
     "vue/no-mutating-props": "warn"
+  },
+  "globals": {
+    "pwa": true
   }
 }

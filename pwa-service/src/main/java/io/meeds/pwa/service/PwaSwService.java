@@ -55,9 +55,13 @@ public class PwaSwService {
   public String getContent() {
     if (serviceWorkerContent.get() == null || DEVELOPPING) {
       try (InputStream is = configurationManager.getInputStream(serviceWorkerPath)) {
-        String content = IOUtils.toString(is, StandardCharsets.UTF_8);
-        content = replaceVariables(content);
-        serviceWorkerContent.set(content);
+        if (is == null) {
+          LOG.warn("Can't find service worker path: {}", serviceWorkerPath);
+        } else {
+          String content = IOUtils.toString(is, StandardCharsets.UTF_8);
+          content = replaceVariables(content);
+          serviceWorkerContent.set(content);
+        }
       } catch (Exception e) {
         LOG.warn("Can't find service worker path: {}", serviceWorkerPath, e);
         return null;
