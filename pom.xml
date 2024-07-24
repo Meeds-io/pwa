@@ -50,6 +50,7 @@
   <properties>
     <io.meeds.social.version>7.0.x-exo-SNAPSHOT</io.meeds.social.version>
     <addon.meeds.gamification.version>7.0.x-exo-SNAPSHOT</addon.meeds.gamification.version>
+    <addon.meeds.analytics.version>7.0.x-exo-SNAPSHOT</addon.meeds.analytics.version>
 
     <nl.martijndwars.web-push.version>5.1.1</nl.martijndwars.web-push.version>
     <org.bitbucket.b_c.version>0.9.6</org.bitbucket.b_c.version>
@@ -70,6 +71,13 @@
         <groupId>io.meeds.gamification</groupId>
         <artifactId>gamification</artifactId>
         <version>${addon.meeds.gamification.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>io.meeds.analytics</groupId>
+        <artifactId>analytics-parent</artifactId>
+        <version>${addon.meeds.analytics.version}</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
