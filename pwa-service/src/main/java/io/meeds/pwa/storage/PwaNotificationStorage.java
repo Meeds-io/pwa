@@ -24,7 +24,6 @@ import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
-import java.util.concurrent.CompletableFuture;
 
 import org.bouncycastle.jce.interfaces.ECPrivateKey;
 import org.bouncycastle.jce.interfaces.ECPublicKey;
@@ -44,7 +43,6 @@ import io.meeds.common.ContainerTransactional;
 import io.meeds.pwa.utils.VapidKeysUtils;
 
 import io.micrometer.common.util.StringUtils;
-import jakarta.annotation.PostConstruct;
 import lombok.SneakyThrows;
 
 @Component
@@ -69,17 +67,22 @@ public class PwaNotificationStorage {
   @Value("${pwa.notifications.enabled:true}")
   private boolean              enabled;
 
-  @PostConstruct
-  public void init() { // NOSONAR
-    CompletableFuture.runAsync(this::generateVapidKeys);
-  }
-
   public PublicKey getVapidPublicKey() throws NoSuchAlgorithmException, NoSuchProviderException, InvalidKeySpecException {
-    return VapidKeysUtils.decodePublicKey(getVapidPublicKeyString());
+    String vapidPublicKeyString = getVapidPublicKeyString();
+    if (StringUtils.isBlank(vapidPublicKeyString)) {
+      this.generateVapidKeys();
+      vapidPublicKeyString = getVapidPublicKeyString();
+    }
+    return VapidKeysUtils.decodePublicKey(vapidPublicKeyString);
   }
 
   public PrivateKey getVapidPrivateKey() throws NoSuchAlgorithmException, NoSuchProviderException, InvalidKeySpecException {
-    return VapidKeysUtils.decodePrivateKey(getVapidPrivateKeyString());
+    String vapidPrivateKeyString = getVapidPrivateKeyString();
+    if (StringUtils.isBlank(vapidPrivateKeyString)) {
+      this.generateVapidKeys();
+      vapidPrivateKeyString = getVapidPrivateKeyString();
+    }
+    return VapidKeysUtils.decodePrivateKey(vapidPrivateKeyString);
   }
 
   public String getVapidPublicKeyString() {
