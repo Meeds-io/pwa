@@ -18,6 +18,8 @@
  */
 package io.meeds.pwa.service;
 
+import static io.meeds.pwa.service.PwaSubscriptionService.PWA_INSTALLED;
+import static io.meeds.pwa.service.PwaSubscriptionService.PWA_UNINSTALLED;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -32,6 +34,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 
+import org.exoplatform.services.listener.ListenerService;
+
 import io.meeds.pwa.model.UserPushSubscription;
 import io.meeds.pwa.storage.PwaSubscriptionStorage;
 
@@ -40,14 +44,17 @@ import io.meeds.pwa.storage.PwaSubscriptionStorage;
 })
 public class PwaSubscriptionServiceTest {
 
-  private static final String    SUBSCRIPTION_ENDPOINT_ID = "subscriptionId";
+  private static final String    SUBSCRIPTION_ID       = "subscriptionId";
 
-  private static final String    SUBSCRIPTION_ENDPOINT    = "http://localhost/endpoint";
+  private static final String    SUBSCRIPTION_ENDPOINT = "http://localhost/endpoint";
 
-  private static final String    TEST_USER                = "testUser";
+  private static final String    TEST_USER             = "testUser";
 
   @MockBean
   private PwaSubscriptionStorage pwaSubscriptionStorage;
+
+  @MockBean
+  private ListenerService        listenerService;
 
   @Autowired
   private PwaSubscriptionService pwaSubscriptionService;
@@ -72,18 +79,23 @@ public class PwaSubscriptionServiceTest {
     when(pwaSubscriptionStorage.get(TEST_USER)).thenReturn(Collections.emptyList());
     pwaSubscriptionService.createSubscription(userPushSubscription, TEST_USER);
     verify(pwaSubscriptionStorage).create(userPushSubscription, TEST_USER);
+    verify(listenerService).broadcast(PWA_INSTALLED, TEST_USER, userPushSubscription);
   }
 
   @Test
   public void deleteSubscription() {
-    pwaSubscriptionService.deleteSubscription(SUBSCRIPTION_ENDPOINT_ID, TEST_USER);
-    verify(pwaSubscriptionStorage).delete(SUBSCRIPTION_ENDPOINT_ID, TEST_USER);
+    when(pwaSubscriptionStorage.delete(SUBSCRIPTION_ID, TEST_USER)).thenReturn(userPushSubscription);
+    pwaSubscriptionService.deleteSubscription(SUBSCRIPTION_ID, TEST_USER);
+    verify(pwaSubscriptionStorage).delete(SUBSCRIPTION_ID, TEST_USER);
+    verify(listenerService).broadcast(PWA_UNINSTALLED, TEST_USER, userPushSubscription);
   }
 
   @Test
   public void deleteAllSubscriptions() {
+    when(pwaSubscriptionStorage.get(TEST_USER)).thenReturn(Collections.singletonList(userPushSubscription));
+    when(userPushSubscription.getId()).thenReturn(SUBSCRIPTION_ID);
     pwaSubscriptionService.deleteAllSubscriptions(TEST_USER);
-    verify(pwaSubscriptionStorage).deleteAll(TEST_USER);
+    verify(pwaSubscriptionStorage).delete(SUBSCRIPTION_ID, TEST_USER);
   }
 
 }

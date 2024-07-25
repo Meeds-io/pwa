@@ -24,6 +24,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import org.exoplatform.services.listener.ListenerService;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
 
@@ -33,16 +34,24 @@ import io.meeds.pwa.storage.PwaSubscriptionStorage;
 @Service
 public class PwaSubscriptionService {
 
-  private static final Log       LOG = ExoLogger.getLogger(PwaSubscriptionService.class);
+  public static final String     PWA_INSTALLED   = "pwa.installed";
+
+  public static final String     PWA_UNINSTALLED = "pwa.uninstalled";
+
+  private static final Log       LOG             = ExoLogger.getLogger(PwaSubscriptionService.class);
 
   @Autowired
   private PwaSubscriptionStorage pwaSubscriptionStorage;
+
+  @Autowired
+  private ListenerService        listenerService;
 
   public List<UserPushSubscription> getSubscriptions(String username) {
     return pwaSubscriptionStorage.get(username);
   }
 
-  public void createSubscription(UserPushSubscription subscription, String username) {
+  public void createSubscription(UserPushSubscription subscription,
+                                 String username) {
     List<UserPushSubscription> subscriptions = pwaSubscriptionStorage.get(username);
     String endpoint = subscription.getEndpoint();
     if (subscriptions.stream().noneMatch(s -> StringUtils.equals(s.getEndpoint(), endpoint))) {
@@ -51,19 +60,26 @@ public class PwaSubscriptionService {
                username,
                getSubscriptionDomain(endpoint));
       pwaSubscriptionStorage.create(subscription, username);
+      listenerService.broadcast(PWA_INSTALLED, username, subscription);
     } else {
       LOG.debug("Subscription for endpoint {} already exists for user {}", getSubscriptionDomain(endpoint), username);
     }
   }
 
   public void deleteSubscription(String id, String username) {
-    pwaSubscriptionStorage.delete(id, username);
-    LOG.info("Delete subscription with id {} for user {}", id, username);
+    deleteSubscription(id, username, true);
+  }
+
+  public void deleteSubscription(String id, String username, boolean userAction) {
+    UserPushSubscription subscription = pwaSubscriptionStorage.delete(id, username);
+    if (userAction && subscription != null) {
+      listenerService.broadcast(PWA_UNINSTALLED, username, subscription);
+    }
   }
 
   public void deleteAllSubscriptions(String username) {
-    pwaSubscriptionStorage.deleteAll(username);
-    LOG.info("Delete all subscriptions for user {}", username);
+    List<UserPushSubscription> subscriptions = getSubscriptions(username);
+    subscriptions.forEach(s -> deleteSubscription(s.getId(), username));
   }
 
   private String getSubscriptionDomain(String endpoint) {
