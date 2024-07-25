@@ -201,7 +201,7 @@ public class PwaNotificationServiceTest {
     future = pwaNotificationService.create(NOTIFICATION_ID);
     assertNotNull(future);
     assertEquals(0, (int) future.get());
-    verify(pwaSubscriptionService, never()).deleteSubscription(SUBSCRIPTION_ID, TEST_USER);
+    verify(pwaSubscriptionService, never()).deleteSubscription(SUBSCRIPTION_ID, TEST_USER, false);
     verify(pushService).send(argThat(n -> (NOTIFICATION_ID + ":" +
         PWA_NOTIFICATION_OPEN_UI_ACTION).equals(new String(n.getPayload()))));
 
@@ -209,13 +209,13 @@ public class PwaNotificationServiceTest {
     future = pwaNotificationService.create(NOTIFICATION_ID);
     assertNotNull(future);
     assertEquals(0, (int) future.get());
-    verify(pwaSubscriptionService).deleteSubscription(SUBSCRIPTION_ID, TEST_USER);
+    verify(pwaSubscriptionService).deleteSubscription(SUBSCRIPTION_ID, TEST_USER, false);
 
     when(statusLine.getStatusCode()).thenReturn(200);
     future = pwaNotificationService.create(NOTIFICATION_ID);
     assertNotNull(future);
     assertEquals(1, (int) future.get());
-    verify(pwaSubscriptionService).deleteSubscription(SUBSCRIPTION_ID, TEST_USER);
+    verify(pwaSubscriptionService).deleteSubscription(SUBSCRIPTION_ID, TEST_USER, false);
   }
 
   @Test
@@ -239,7 +239,7 @@ public class PwaNotificationServiceTest {
     future = pwaNotificationService.delete(NOTIFICATION_ID);
     assertNotNull(future);
     assertEquals(0, (int) future.get());
-    verify(pwaSubscriptionService, never()).deleteSubscription(SUBSCRIPTION_ID, TEST_USER);
+    verify(pwaSubscriptionService, never()).deleteSubscription(SUBSCRIPTION_ID, TEST_USER, false);
     verify(pushService).send(argThat(n -> (NOTIFICATION_ID + ":" +
         PWA_NOTIFICATION_CLOSE_UI_ACTION).equals(new String(n.getPayload()))));
 
@@ -247,13 +247,13 @@ public class PwaNotificationServiceTest {
     future = pwaNotificationService.delete(NOTIFICATION_ID);
     assertNotNull(future);
     assertEquals(0, (int) future.get());
-    verify(pwaSubscriptionService).deleteSubscription(SUBSCRIPTION_ID, TEST_USER);
+    verify(pwaSubscriptionService).deleteSubscription(SUBSCRIPTION_ID, TEST_USER, false);
 
     when(statusLine.getStatusCode()).thenReturn(200);
     future = pwaNotificationService.delete(NOTIFICATION_ID);
     assertNotNull(future);
     assertEquals(1, (int) future.get());
-    verify(pwaSubscriptionService).deleteSubscription(SUBSCRIPTION_ID, TEST_USER);
+    verify(pwaSubscriptionService).deleteSubscription(SUBSCRIPTION_ID, TEST_USER, false);
   }
 
   @Test
@@ -277,20 +277,20 @@ public class PwaNotificationServiceTest {
     future = pwaNotificationService.deleteAll(TEST_USER);
     assertNotNull(future);
     assertEquals(0, (int) future.get());
-    verify(pwaSubscriptionService, never()).deleteSubscription(SUBSCRIPTION_ID, TEST_USER);
+    verify(pwaSubscriptionService, never()).deleteSubscription(SUBSCRIPTION_ID, TEST_USER, false);
     verify(pushService).send(argThat(n -> new String(n.getPayload()).contains(":" + PWA_NOTIFICATION_CLOSE_ALL_UI_ACTION)));
 
     when(statusLine.getStatusCode()).thenReturn(410);
     future = pwaNotificationService.deleteAll(TEST_USER);
     assertNotNull(future);
     assertEquals(0, (int) future.get());
-    verify(pwaSubscriptionService).deleteSubscription(SUBSCRIPTION_ID, TEST_USER);
+    verify(pwaSubscriptionService).deleteSubscription(SUBSCRIPTION_ID, TEST_USER, false);
 
     when(statusLine.getStatusCode()).thenReturn(200);
     future = pwaNotificationService.deleteAll(TEST_USER);
     assertNotNull(future);
     assertEquals(1, (int) future.get());
-    verify(pwaSubscriptionService).deleteSubscription(SUBSCRIPTION_ID, TEST_USER);
+    verify(pwaSubscriptionService).deleteSubscription(SUBSCRIPTION_ID, TEST_USER, false);
   }
 
   @SneakyThrows

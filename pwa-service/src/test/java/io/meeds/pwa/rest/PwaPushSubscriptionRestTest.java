@@ -1,5 +1,3 @@
-package io.meeds.pwa.rest;
-
 /**
  * This file is part of the Meeds project (https://meeds.io/).
  *
@@ -18,6 +16,7 @@ package io.meeds.pwa.rest;
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
+package io.meeds.pwa.rest;
 
 import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -110,6 +109,7 @@ public class PwaPushSubscriptionRestTest {
                                                             .content(asJsonString(userPushSubscription))
                                                             .contentType(MediaType.APPLICATION_JSON));
     response.andExpect(status().isOk());
+    userPushSubscription.setDeviceType("Robot");
     verify(pwaSubscriptionService).createSubscription(userPushSubscription, SIMPLE_USER);
   }
 

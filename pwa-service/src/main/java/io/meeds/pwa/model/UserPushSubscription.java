@@ -44,6 +44,8 @@ public class UserPushSubscription {
 
   private String endpoint;
 
+  private String deviceType;
+
   public byte[] authAsBytes() {
     return Base64.getDecoder().decode(getAuth());
   }
