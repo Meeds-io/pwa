@@ -26,13 +26,17 @@
       e.preventDefault();
       window.deferredPwaPrompt = e;
       unsubscribe();
-      if (window.localStorage && !window.localStorage.getItem(`pwa.suggested-${eXo.env.portal.userName}`)) {
+      if (window.localStorage
+          && !window.localStorage.getItem(`pwa.suggested-${eXo.env.portal.userName}`)) {
         window.deferredPwaPromptTimeout = window.setTimeout(async () => {
           const i18n = await exoi18n.loadLanguageAsync(eXo.env.portal.language, `/social-portlet/i18n/locale.portlet.Portlets?lang=${eXo.env.portal.language}`);
           document.dispatchEvent(new CustomEvent('alert-message', {detail:{
             alertMessage: i18n.messages?.[eXo.env.portal.language]?.['pwa.feature.suggest'],
             alertLinkText: i18n.messages?.[eXo.env.portal.language]?.['pwa.feature.suggest.install'],
             alertType: 'info',
+            alertDismissCallback: () => {
+              window.localStorage.setItem(`pwa.suggested-${eXo.env.portal.userName}`, 'true');
+            },
             alertLinkCallback: () => {
               document.dispatchEvent(new CustomEvent('close-alert-message'));
               window.deferredPwaPrompt.prompt()
