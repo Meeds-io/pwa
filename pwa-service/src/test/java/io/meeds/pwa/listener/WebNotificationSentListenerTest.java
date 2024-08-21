@@ -48,8 +48,6 @@ import io.meeds.pwa.service.PwaNotificationService;
 @ExtendWith(MockitoExtension.class)
 public class WebNotificationSentListenerTest {
 
-  private static final String         TEST_USER       = "testUser";
-
   private static final String         NOTIFICATION_ID = "5";
 
   @MockBean
@@ -67,11 +65,8 @@ public class WebNotificationSentListenerTest {
   @Test
   public void init() {
     webNotificationSentListener.init();
-    verify(listenerService, times(4)).addListener(anyString(), eq(webNotificationSentListener));
+    verify(listenerService, times(1)).addListener(anyString(), eq(webNotificationSentListener));
     verify(listenerService).addListener(NOTIFICATION_WEB_SAVED_EVENT, webNotificationSentListener);
-    verify(listenerService).addListener(NOTIFICATION_WEB_DELETED_EVENT, webNotificationSentListener);
-    verify(listenerService).addListener(NOTIFICATION_WEB_READ_EVENT, webNotificationSentListener);
-    verify(listenerService).addListener(NOTIFICATION_WEB_READ_ALL_EVENT, webNotificationSentListener);
   }
 
   @Test
@@ -95,39 +90,6 @@ public class WebNotificationSentListenerTest {
     when(event.getSource()).thenReturn(NOTIFICATION_ID);
     webNotificationSentListener.onEvent(event);
     verify(pwaNotificationService).create(Long.parseLong(NOTIFICATION_ID));
-  }
-
-  @Test
-  public void onEventWhenWebNotifDeleted() throws Exception {
-    when(event.getEventName()).thenReturn(NOTIFICATION_WEB_DELETED_EVENT);
-    webNotificationSentListener.onEvent(event);
-    verifyNoMoreInteractions(pwaNotificationService);
-
-    when(event.getSource()).thenReturn(NOTIFICATION_ID);
-    webNotificationSentListener.onEvent(event);
-    verify(pwaNotificationService).delete(Long.parseLong(NOTIFICATION_ID));
-  }
-
-  @Test
-  public void onEventWhenWebNotifRead() throws Exception {
-    when(event.getEventName()).thenReturn(NOTIFICATION_WEB_READ_EVENT);
-    webNotificationSentListener.onEvent(event);
-    verifyNoMoreInteractions(pwaNotificationService);
-
-    when(event.getSource()).thenReturn(NOTIFICATION_ID);
-    webNotificationSentListener.onEvent(event);
-    verify(pwaNotificationService).delete(Long.parseLong(NOTIFICATION_ID));
-  }
-
-  @Test
-  public void onEventWhenWebNotifAllRead() throws Exception {
-    when(event.getEventName()).thenReturn(NOTIFICATION_WEB_READ_ALL_EVENT);
-    webNotificationSentListener.onEvent(event);
-    verifyNoMoreInteractions(pwaNotificationService);
-
-    when(event.getSource()).thenReturn(TEST_USER);
-    webNotificationSentListener.onEvent(event);
-    verify(pwaNotificationService).deleteAll(TEST_USER);
   }
 
 }
