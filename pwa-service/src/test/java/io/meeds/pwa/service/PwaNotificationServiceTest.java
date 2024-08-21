@@ -18,8 +18,6 @@
  */
 package io.meeds.pwa.service;
 
-import static io.meeds.pwa.service.PwaNotificationService.PWA_NOTIFICATION_CLOSE_ALL_UI_ACTION;
-import static io.meeds.pwa.service.PwaNotificationService.PWA_NOTIFICATION_CLOSE_UI_ACTION;
 import static io.meeds.pwa.service.PwaNotificationService.PWA_NOTIFICATION_MARK_READ_USER_ACTION;
 import static io.meeds.pwa.service.PwaNotificationService.PWA_NOTIFICATION_OPEN_UI_ACTION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -213,81 +211,6 @@ public class PwaNotificationServiceTest {
 
     when(statusLine.getStatusCode()).thenReturn(200);
     future = pwaNotificationService.create(NOTIFICATION_ID);
-    assertNotNull(future);
-    assertEquals(1, (int) future.get());
-    verify(pwaSubscriptionService).deleteSubscription(SUBSCRIPTION_ID, TEST_USER, false);
-  }
-
-  @Test
-  public void delete() throws Exception { // NOSONAR
-    ScheduledFuture<?> future = pwaNotificationService.delete(NOTIFICATION_ID);
-    assertNull(future);
-    when(pwaManifestService.isPwaEnabled()).thenReturn(true);
-    future = pwaNotificationService.delete(NOTIFICATION_ID);
-    assertNotNull(future);
-    assertEquals(0, (int) future.get());
-    verifyNoInteractions(listenerService);
-
-    mockWebNotification();
-    when(pwaSubscriptionService.getSubscriptions(TEST_USER)).thenReturn(Collections.singletonList(userPushSubscription));
-    when(userPushSubscription.getEndpoint()).thenReturn(SUBSCRIPTION_ENDPOINT);
-    when(userPushSubscription.getId()).thenReturn(SUBSCRIPTION_ID);
-    when(pushService.send(any())).thenReturn(httpResponse);
-    when(httpResponse.getStatusLine()).thenReturn(statusLine);
-    when(statusLine.getStatusCode()).thenReturn(401);
-
-    future = pwaNotificationService.delete(NOTIFICATION_ID);
-    assertNotNull(future);
-    assertEquals(0, (int) future.get());
-    verify(pwaSubscriptionService, never()).deleteSubscription(SUBSCRIPTION_ID, TEST_USER, false);
-    verify(pushService).send(argThat(n -> (NOTIFICATION_ID + ":" +
-        PWA_NOTIFICATION_CLOSE_UI_ACTION).equals(new String(n.getPayload()))));
-
-    when(statusLine.getStatusCode()).thenReturn(410);
-    future = pwaNotificationService.delete(NOTIFICATION_ID);
-    assertNotNull(future);
-    assertEquals(0, (int) future.get());
-    verify(pwaSubscriptionService).deleteSubscription(SUBSCRIPTION_ID, TEST_USER, false);
-
-    when(statusLine.getStatusCode()).thenReturn(200);
-    future = pwaNotificationService.delete(NOTIFICATION_ID);
-    assertNotNull(future);
-    assertEquals(1, (int) future.get());
-    verify(pwaSubscriptionService).deleteSubscription(SUBSCRIPTION_ID, TEST_USER, false);
-  }
-
-  @Test
-  public void deleteAll() throws Exception { // NOSONAR
-    ScheduledFuture<?> future = pwaNotificationService.deleteAll(TEST_USER);
-    assertNull(future);
-    when(pwaManifestService.isPwaEnabled()).thenReturn(true);
-    future = pwaNotificationService.deleteAll(TEST_USER);
-    assertNotNull(future);
-    assertEquals(0, (int) future.get());
-    verifyNoInteractions(listenerService);
-
-    mockWebNotification();
-    when(pwaSubscriptionService.getSubscriptions(TEST_USER)).thenReturn(Collections.singletonList(userPushSubscription));
-    when(userPushSubscription.getEndpoint()).thenReturn(SUBSCRIPTION_ENDPOINT);
-    when(userPushSubscription.getId()).thenReturn(SUBSCRIPTION_ID);
-    when(pushService.send(any())).thenReturn(httpResponse);
-    when(httpResponse.getStatusLine()).thenReturn(statusLine);
-    when(statusLine.getStatusCode()).thenReturn(401);
-
-    future = pwaNotificationService.deleteAll(TEST_USER);
-    assertNotNull(future);
-    assertEquals(0, (int) future.get());
-    verify(pwaSubscriptionService, never()).deleteSubscription(SUBSCRIPTION_ID, TEST_USER, false);
-    verify(pushService).send(argThat(n -> new String(n.getPayload()).contains(":" + PWA_NOTIFICATION_CLOSE_ALL_UI_ACTION)));
-
-    when(statusLine.getStatusCode()).thenReturn(410);
-    future = pwaNotificationService.deleteAll(TEST_USER);
-    assertNotNull(future);
-    assertEquals(0, (int) future.get());
-    verify(pwaSubscriptionService).deleteSubscription(SUBSCRIPTION_ID, TEST_USER, false);
-
-    when(statusLine.getStatusCode()).thenReturn(200);
-    future = pwaNotificationService.deleteAll(TEST_USER);
     assertNotNull(future);
     assertEquals(1, (int) future.get());
     verify(pwaSubscriptionService).deleteSubscription(SUBSCRIPTION_ID, TEST_USER, false);

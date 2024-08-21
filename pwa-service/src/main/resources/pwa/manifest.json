@@ -38,7 +38,7 @@
   },
   "scope_extensions": [
     {
-      "origin": "$domainName"
+      "origin": "$fullDomainUrl"
     }
   ],
   "handle_links": "preferred",
