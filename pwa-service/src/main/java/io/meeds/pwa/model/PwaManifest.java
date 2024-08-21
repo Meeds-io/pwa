@@ -47,6 +47,8 @@ public class PwaManifest {
 
   private String              domainName;
 
+  private String              fullDomainUrl;
+
   private String              descriptionKey;
 
   private String              content;
@@ -66,6 +68,7 @@ public class PwaManifest {
                         .replace("$dir", branding.getDirection())
                         .replace("$backgroundColor", getBackgroundColor(branding))
                         .replace("$domainName", domainName)
+                        .replace("$fullDomainUrl", fullDomainUrl)
                         .replace("$themeColor", getThemeColor(branding));
     }
     return content;
