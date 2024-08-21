@@ -18,9 +18,6 @@
  */
 package io.meeds.pwa.listener;
 
-import static org.exoplatform.commons.api.notification.service.storage.WebNotificationStorage.NOTIFICATION_WEB_DELETED_EVENT;
-import static org.exoplatform.commons.api.notification.service.storage.WebNotificationStorage.NOTIFICATION_WEB_READ_ALL_EVENT;
-import static org.exoplatform.commons.api.notification.service.storage.WebNotificationStorage.NOTIFICATION_WEB_READ_EVENT;
 import static org.exoplatform.commons.api.notification.service.storage.WebNotificationStorage.NOTIFICATION_WEB_SAVED_EVENT;
 
 import java.util.stream.Stream;
@@ -43,12 +40,7 @@ public class WebNotificationSentListener implements ListenerBase<Object, Object>
 
   private static final Log       LOG         = ExoLogger.getLogger(WebNotificationSentListener.class);
 
-  private static final String[]  EVENT_NAMES = new String[] {
-                                                              NOTIFICATION_WEB_SAVED_EVENT,
-                                                              NOTIFICATION_WEB_DELETED_EVENT,
-                                                              NOTIFICATION_WEB_READ_EVENT,
-                                                              NOTIFICATION_WEB_READ_ALL_EVENT
-  };
+  private static final String[]  EVENT_NAMES = new String[] { NOTIFICATION_WEB_SAVED_EVENT };
 
   @Autowired
   private PwaNotificationService pwaNotificationService;
@@ -68,33 +60,12 @@ public class WebNotificationSentListener implements ListenerBase<Object, Object>
       return;
     }
     try {
-      switch (event.getEventName()) {
-      case NOTIFICATION_WEB_SAVED_EVENT: {
-        Boolean isNew = (Boolean) event.getData();
-        String notificationId = (String) event.getSource();
-        if (isNew != null
-            && isNew.booleanValue()
-            && notificationId != null) {
-          pwaNotificationService.create(Long.parseLong(notificationId));
-        }
-        break;
-      }
-      case NOTIFICATION_WEB_DELETED_EVENT, NOTIFICATION_WEB_READ_EVENT: {
-        String notificationId = (String) event.getSource();
-        if (notificationId != null) {
-          pwaNotificationService.delete(Long.parseLong(notificationId));
-        }
-        break;
-      }
-      case NOTIFICATION_WEB_READ_ALL_EVENT: {
-        String username = (String) event.getSource();
-        if (username != null) {
-          pwaNotificationService.deleteAll(username);
-        }
-        break;
-      }
-      default:
-        throw new IllegalArgumentException("Event not handled: " + event.getEventName());
+      Boolean isNew = (Boolean) event.getData();
+      String notificationId = (String) event.getSource();
+      if (isNew != null
+          && isNew.booleanValue()
+          && notificationId != null) {
+        pwaNotificationService.create(Long.parseLong(notificationId));
       }
     } catch (Exception e) {
       LOG.warn("Error while handling notification event '{}' with id '{}'", event.getEventName(), event.getSource(), e);
