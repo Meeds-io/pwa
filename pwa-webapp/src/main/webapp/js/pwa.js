@@ -19,13 +19,14 @@
  */
 
 (function(exoi18n) {
-  if (!window?.matchMedia('(display-mode: standalone)')?.matches
+  if (!isPwaDisplay()
     && eXo.env.portal.pwaEnabled
     && eXo.env.portal.userName) {
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       window.deferredPwaPrompt = e;
       unsubscribe();
+      document.dispatchEvent(new CustomEvent('pwa-beforeinstallprompt'));
       if (window.localStorage
           && !window.localStorage.getItem(`pwa.suggested-${eXo.env.portal.userName}`)) {
         window.deferredPwaPromptTimeout = window.setTimeout(async () => {
@@ -68,7 +69,7 @@
   });
 
   async function init() {
-    if (window?.matchMedia('(display-mode: standalone)')?.matches
+    if (isPwaDisplay()
       && eXo.env.portal.userName
       && eXo.env.portal.pwaEnabled
       && 'serviceWorker' in navigator)  {
@@ -78,13 +79,16 @@
 
   async function initSubscription() {
     try {
-      const registration = await navigator.serviceWorker.register('/pwa/rest/service-worker',{
-          scope: '/',
-      });
+      let registration = await navigator.serviceWorker.getRegistration();
+      if (!registration) {
+        registration = await navigator.serviceWorker.register('/pwa/rest/service-worker',{
+            scope: '/',
+        });
+      }
       if (eXo.developing
         || (
-          window.localStorage.getItem(`pwa.service-worker.version`)
-          && window.localStorage.getItem(`pwa.service-worker.version`) !== eXo.env.client.assetsVersion)) {
+          window.localStorage.getItem('pwa.service-worker.version')
+          && window.localStorage.getItem('pwa.service-worker.version') !== eXo.env.client.assetsVersion)) {
         await registration.update();
         window.localStorage.setItem('pwa.service-worker.version', eXo.env.client.assetsVersion);
       }
@@ -205,6 +209,11 @@
       window.localStorage.setItem(`pwa.notification.subscription.id-${eXo.env.portal.userName}`, subscriptionId);
     }
     return subscriptionId;
+  }
+
+  function isPwaDisplay() {
+    return window?.matchMedia('(display-mode: tabbed)')?.matches
+      || window?.matchMedia('(display-mode: standalone)')?.matches;
   }
 
   return {

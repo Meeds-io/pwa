@@ -83,7 +83,7 @@
                 :aria-label="$t('UserSettings.pwa.notification.choose')"
                 :loading="permissionLoading"
                 class="btn"
-                flat
+                text
                 @click="requestPermission">
                 {{ $t('UserSettings.pwa.notification.choose') }}
               </v-btn>
@@ -151,17 +151,23 @@ export default {
         this.displayed = false;
       }
     });
+    document.addEventListener('pwa-beforeinstallprompt', this.checkInstalled);
     this.pwaSupported = 'onbeforeinstallprompt' in window;
-    const pwaMode = !!window?.matchMedia('(display-mode: standalone)')?.matches;
-    this.installed = pwaMode || (this.pwaEnabled && this.pwaSupported && !window.deferredPwaPrompt) || false;
-    if (window.deferredPwaPromptTimeout) {
-      window.clearTimeout(window.deferredPwaPromptTimeout);
-    }
+    this.checkInstalled();
   },
   mounted() {
     this.$root.$applicationLoaded();
   },
   methods: {
+    async checkInstalled() {
+      const pwaMode = !!(window?.matchMedia('(display-mode: standalone)')?.matches || window?.matchMedia('(display-mode: tabbed)')?.matches);
+      const installed = pwaMode || (this.pwaEnabled && this.pwaSupported && !window.deferredPwaPrompt) || false;
+      const registration = await navigator.serviceWorker.getRegistration();
+      this.installed = installed && !!registration;
+      if (window.deferredPwaPromptTimeout) {
+        window.clearTimeout(window.deferredPwaPromptTimeout);
+      }
+    },
     async installPwa() {
       this.loading = true;
       try {
@@ -181,6 +187,7 @@ export default {
       try {
         await Notification.requestPermission();
       } finally {
+        document.dispatchEvent(new CustomEvent('close-alert-message'));
         this.notificationPermission = Notification.permission;
         if (this.notificationPermission === 'granted') {
           pwa.init();
