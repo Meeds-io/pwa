@@ -105,7 +105,7 @@ public class PwaManifestService {
 
   public static final boolean   DEVELOPPING                = PropertyManager.isDevelopping();
 
-  public static final String    DEFAULT_DOMAIN_NAME        = "test.meeds.io";
+  public static final String    DEFAULT_DOMAIN_NAME        = "localhost";
 
   public static final String    DOMAIN_URL_PARAM_NAME      = "gatein.email.domain.url";
 
@@ -360,6 +360,7 @@ public class PwaManifestService {
     String domainName = getDomainName();
     pwaManifest.setManifestId(domainName);
     pwaManifest.setDomainName(domainName);
+    pwaManifest.setFullDomainUrl(getFullDomainUrl());
     if (pwaManifestPath != null && (pwaManifest.getTemplate() == null || DEVELOPPING)) {
       try (InputStream inputStream = configurationManager.getInputStream(pwaManifestPath)) {
         if (inputStream != null) {
@@ -401,6 +402,15 @@ public class PwaManifestService {
       return domain.replace("https://", "")
                    .replace("http://", "")
                    .replaceAll("(:\\d*)?/?", "");
+    }
+  }
+
+  private String getFullDomainUrl() {
+    String domain = System.getProperty(DOMAIN_URL_PARAM_NAME);
+    if (StringUtils.isBlank(domain)) {
+      return "http://" + DEFAULT_DOMAIN_NAME + ":8080";
+    } else {
+      return domain.replaceAll("(https?://)([^:/]*)(:\\d*)?(.*)", "$1$2$3");
     }
   }
 
