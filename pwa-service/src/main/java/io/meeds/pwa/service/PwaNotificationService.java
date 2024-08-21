@@ -69,15 +69,7 @@ public class PwaNotificationService {
 
   public static final String           PWA_NOTIFICATION_CREATED                = "pwa.notification.created";
 
-  public static final String           PWA_NOTIFICATION_DELETED                = "pwa.notification.deleted";
-
-  public static final String           PWA_NOTIFICATION_ALL_DELETED            = "pwa.notification.allDeleted";
-
   public static final String           PWA_NOTIFICATION_OPEN_UI_ACTION         = "open";
-
-  public static final String           PWA_NOTIFICATION_CLOSE_UI_ACTION        = "close";
-
-  public static final String           PWA_NOTIFICATION_CLOSE_ALL_UI_ACTION    = "closeAll";
 
   public static final String           PWA_NOTIFICATION_MARK_READ_USER_ACTION  = "markRead";
 
@@ -226,55 +218,10 @@ public class PwaNotificationService {
   }
 
   /**
-   * Delete a previously displayed Push Notification to End user due if not
-   * dismissed yet
-   * 
-   * @param webNotificationId
-   * @return
-   */
-  public ScheduledFuture<?> delete(long webNotificationId) { // NOSONAR
-    if (pwaManifestService.isPwaEnabled()) {
-      return executorService.schedule(() -> this.sendCloseNotification(webNotificationId), 1, TimeUnit.SECONDS);
-    } else {
-      return null;
-    }
-  }
-
-  /**
-   * Delete all previously displayed push notifications to user's device(s)
-   * 
-   * @param username
-   */
-  public ScheduledFuture<?> deleteAll(String username) { // NOSONAR
-    if (pwaManifestService.isPwaEnabled()) {
-      return executorService.schedule(() -> this.sendCloseAllNotifications(username), 1, TimeUnit.SECONDS);
-    } else {
-      return null;
-    }
-  }
-
-  /**
    * @return VAPID Public Key encoded using Base64url
    */
   public String getVapidPublicKeyString() {
     return pwaNotificationStorage.getVapidPublicKeyString();
-  }
-
-  private int sendCloseAllNotifications(String username) {
-    int sentCount = sendNotification(RANDOM.nextLong(), PWA_NOTIFICATION_CLOSE_ALL_UI_ACTION, username);
-    if (sentCount > 0) {
-      listenerService.broadcast(PWA_NOTIFICATION_ALL_DELETED, username, null);
-    }
-    return sentCount;
-  }
-
-  private int sendCloseNotification(Long webNotificationId) {
-    NotificationInfo notification = webNotificationService.getNotificationInfo(String.valueOf(webNotificationId));
-    int sentCount = sendNotification(notification, PWA_NOTIFICATION_CLOSE_UI_ACTION);
-    if (sentCount > 0) {
-      listenerService.broadcast(PWA_NOTIFICATION_DELETED, webNotificationId, null);
-    }
-    return sentCount;
   }
 
   private int sendCreateNotification(Long webNotificationId) {
