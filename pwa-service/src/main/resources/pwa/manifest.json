@@ -44,5 +44,9 @@
   "handle_links": "preferred",
   "screenshots": [],
   "categories": [],
+  "related_applications": [{
+    "platform": "webapp",
+    "url": "$fullDomainUrl/pwa/rest/manifest"
+  }],
   "prefer_related_applications": true
 }
