@@ -1,0 +1,14 @@
+<%
+  import org.exoplatform.container.ExoContainerContext;
+  import io.meeds.pwa.service.PwaManifestService;
+
+  PwaManifestService pwaManifestService = ExoContainerContext.getService(PwaManifestService.class);
+
+  _ctx.getRequestContext().getJavascriptManager()
+    .require("SHARED/pwa", "pwa").addScripts("pwa.init();");
+%><meta name="theme-color" content="<%=pwaManifestService.getThemeColor()%>"/>
+<%
+  if (pwaManifestService.isPwaEnabled()) {
+%><link rel="manifest" href="<%="/pwa/rest/manifest?v=" + pwaManifestService.getManifestHash()%>"><%
+  }
+%>

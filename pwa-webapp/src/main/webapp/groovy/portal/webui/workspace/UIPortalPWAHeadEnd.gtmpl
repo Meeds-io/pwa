@@ -1,0 +1,15 @@
+<%
+  import org.exoplatform.container.ExoContainerContext;
+  import io.meeds.pwa.service.PwaManifestService;
+  import io.meeds.pwa.service.PwaNotificationService;
+
+  PwaManifestService pwaManifestService = ExoContainerContext.getService(PwaManifestService.class);
+  if (pwaManifestService.isPwaEnabled()) {
+    PwaNotificationService pwaNotificationService = ExoContainerContext.getService(PwaNotificationService.class);
+%><script type="text/javascript" id="serviceWorkerScript">
+  eXo.env.portal.pwaEnabled = true;
+  eXo.env.portal.pwaPushPublicKey = '<%=pwaNotificationService.getVapidPublicKeyString().replace("=", "")%>';
+  <% if (_ctx.getRequestContext().getRemoteUser() != null) {
+  %>window.require(["SHARED/pwa"], pwa => pwa.init());<% } %>
+</script><%
+} %>

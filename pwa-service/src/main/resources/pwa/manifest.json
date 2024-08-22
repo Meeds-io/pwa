@@ -1,0 +1,52 @@
+{
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "name": "$name",
+  "short_name": "$name",
+  "description": "$description",
+  "icons": [{
+    "src": "$largeIconPath&sizes=1024x1024",
+    "sizes": "1024x1024",
+    "type": "image/png",
+    "purpose": "maskable"
+  }, {
+    "src": "$largeIconPath&sizes=192x192",
+    "sizes": "192x192",
+    "type": "image/png",
+    "purpose": "any"
+  }, {
+    "src": "$smallIconPath&sizes=144x144",
+    "sizes": "144x144",
+    "type": "image/png"
+  }, {
+    "src": "$smallIconPath&sizes=72x72",
+    "sizes": "72x72",
+    "type": "image/png"
+  }],
+  "lang": "$defaultLang",
+  "dir": "$dir",
+  "background_color": "$backgroundColor",
+  "theme_color": "$themeColor",
+  "display": "standalone",
+  "display_override": [
+    "tabbed",
+    "window-controls-overlay"
+  ],
+  "launch_handler": {
+    "client_mode": ["navigate-new", "auto"]
+  },
+  "scope_extensions": [
+    {
+      "origin": "$fullDomainUrl"
+    }
+  ],
+  "handle_links": "preferred",
+  "screenshots": [],
+  "categories": [],
+  "related_applications": [{
+    "platform": "webapp",
+    "url": "$fullDomainUrl/pwa/rest/manifest"
+  }],
+  "prefer_related_applications": true
+}

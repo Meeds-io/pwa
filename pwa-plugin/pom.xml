@@ -28,16 +28,28 @@
     <artifactId>pwa</artifactId>
     <version>7.0.x-SNAPSHOT</version>
   </parent>
-  <artifactId>pwa-service</artifactId>
+  <artifactId>pwa-plugin</artifactId>
   <packaging>jar</packaging>
-  <name>Meeds:: PWA - Service</name>
+  <name>Meeds:: PWA - Notification Plugins</name>
   <dependencies>
     <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>pwa-service</artifactId>
+    </dependency>
+    <dependency>
       <groupId>io.meeds.social</groupId>
-      <artifactId>social-component-core</artifactId>
+      <artifactId>social-component-notification</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.meeds.analytics</groupId>
+      <artifactId>analytics-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.meeds.gamification</groupId>
+      <artifactId>gamification-services</artifactId>
     </dependency>
   </dependencies>
   <build>
-    <finalName>pwa-service</finalName>
+    <finalName>pwa-plugin</finalName>
   </build>
 </project>
