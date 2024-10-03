@@ -48,9 +48,9 @@
     <tag>HEAD</tag>
   </scm>
   <properties>
-    <io.meeds.social.version>7.0.x-exo-SNAPSHOT</io.meeds.social.version>
-    <addon.meeds.gamification.version>7.0.x-exo-SNAPSHOT</addon.meeds.gamification.version>
-    <addon.meeds.analytics.version>7.0.x-exo-SNAPSHOT</addon.meeds.analytics.version>
+    <io.meeds.social.version>7.0.0-exo-M38</io.meeds.social.version>
+    <addon.meeds.gamification.version>7.0.0-exo-M38</addon.meeds.gamification.version>
+    <addon.meeds.analytics.version>7.0.0-exo-M38</addon.meeds.analytics.version>
 
     <nl.martijndwars.web-push.version>5.1.1</nl.martijndwars.web-push.version>
     <org.bitbucket.b_c.version>0.9.6</org.bitbucket.b_c.version>
