@@ -31,7 +31,7 @@ if (extensionRegistry) {
 const lang = eXo && eXo.env.portal.language || 'en';
 
 //should expose the locale ressources as REST API 
-const url = `/social-portlet/i18n/locale.portlet.social.UserSettings?lang=${lang}`;
+const url = `/social/i18n/locale.portlet.social.UserSettings?lang=${lang}`;
 
 let deferredPrompt;
 window.addEventListener('beforeinstallprompt', (e) => {
