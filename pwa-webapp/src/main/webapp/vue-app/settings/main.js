@@ -34,7 +34,7 @@ const lang = eXo && eXo.env.portal.language || 'en';
 
 //should expose the locale ressources as REST API 
 const urls = [
-  `/social-portlet/i18n/locale.portlet.GeneralSettings?lang=${lang}`,
+  `/social/i18n/locale.portlet.GeneralSettings?lang=${lang}`,
   `/pwa/i18n/locale.portlet.PwaSettings?lang=${lang}`
 ];
 const appId = 'PwaSettings';

@@ -30,7 +30,7 @@
       if (window.localStorage
           && !window.localStorage.getItem(`pwa.suggested-${eXo.env.portal.userName}`)) {
         window.deferredPwaPromptTimeout = window.setTimeout(async () => {
-          const i18n = await exoi18n.loadLanguageAsync(eXo.env.portal.language, `/social-portlet/i18n/locale.portlet.Portlets?lang=${eXo.env.portal.language}`);
+          const i18n = await exoi18n.loadLanguageAsync(eXo.env.portal.language, `/social/i18n/locale.portlet.Portlets?lang=${eXo.env.portal.language}`);
           document.dispatchEvent(new CustomEvent('alert-message', {detail:{
             alertMessage: i18n.messages?.[eXo.env.portal.language]?.['pwa.feature.suggest'],
             alertLinkText: i18n.messages?.[eXo.env.portal.language]?.['pwa.feature.suggest.install'],
@@ -114,7 +114,7 @@
       if (Notification.permission === 'granted') {
         subscribe(registration);
       } else {
-        const i18n = await exoi18n.loadLanguageAsync(eXo.env.portal.language, `/social-portlet/i18n/locale.portlet.Portlets?lang=${eXo.env.portal.language}`);
+        const i18n = await exoi18n.loadLanguageAsync(eXo.env.portal.language, `/social/i18n/locale.portlet.Portlets?lang=${eXo.env.portal.language}`);
         window.setTimeout(() => {
           if (!eXo.env.portal.pwaEnabled) {
             return;
