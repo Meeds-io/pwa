@@ -19,8 +19,10 @@
 package io.meeds.pwa.service;
 
 import java.security.KeyPair;
+import java.security.Security;
 
 import org.apache.commons.lang3.StringUtils;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -39,6 +41,9 @@ public class PushServiceConfiguration {
 
   @Bean
   public PushService getPushService(PwaNotificationStorage pwaNotificationStorage) throws Exception { // NOSONAR
+    if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
+      Security.addProvider(new BouncyCastleProvider());
+    }
     PushService pushService = new PushService(new KeyPair(pwaNotificationStorage.getVapidPublicKey(),
                                                           pwaNotificationStorage.getVapidPrivateKey()));
     pushService.setSubject("mailto:" + getContactEmail());
