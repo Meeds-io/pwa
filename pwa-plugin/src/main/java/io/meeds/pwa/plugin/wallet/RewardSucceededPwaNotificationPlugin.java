@@ -39,14 +39,14 @@ import io.meeds.pwa.plugin.PwaNotificationPlugin;
 @Profile("wallet")
 @Component
 public class RewardSucceededPwaNotificationPlugin implements PwaNotificationPlugin {
-  private static final String            REWAR_ADMINISTRATION_URL = "/portal/administration/home/recognition/reward";
 
-  private static final String            TITLE_LABEL_KEY          = "pwa.notification.RewardSuccessNotificationPlugin.title";
+  private static final String            REWARD_ADMINISTRATION_URL = "/portal/administration/home/rewards/reward";
 
-  private static final String            BODY_LABEL_KEY           = "pwa.notification.RewardSuccessNotificationPlugin.body";
+  private static final String            TITLE_LABEL_KEY           = "pwa.notification.RewardSuccessNotificationPlugin.title";
 
-  private static final DateTimeFormatter DATE_FORMATTER           =
-                                                        DateTimeFormatter.ofPattern("d MMM uuuu");
+  private static final String            BODY_LABEL_KEY            = "pwa.notification.RewardSuccessNotificationPlugin.body";
+
+  private static final DateTimeFormatter DATE_FORMATTER            = DateTimeFormatter.ofPattern("d MMM uuuu");
 
   @Autowired
   private ResourceBundleService          resourceBundleService;
@@ -64,7 +64,7 @@ public class RewardSucceededPwaNotificationPlugin implements PwaNotificationPlug
     notificationMessage.setBody(resourceBundleService.getSharedString(BODY_LABEL_KEY, locale)
                                                      .replace("{0}", getDateLabel(notification, "rewardStartPeriodDate", locale))
                                                      .replace("{1}", getDateLabel(notification, "rewardEndPeriodDate", locale)));
-    notificationMessage.setUrl(REWAR_ADMINISTRATION_URL);
+    notificationMessage.setUrl(REWARD_ADMINISTRATION_URL);
     return notificationMessage;
   }
 
