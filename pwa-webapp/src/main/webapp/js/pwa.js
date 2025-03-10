@@ -100,19 +100,13 @@
         }
       });
 
-      if (!('PushManager' in window)) {
+      if (!('PushManager' in window) || !('Notification' in window)) {
         return;
-      }
-
-      if (!('Notification' in window)) {
-        return;
-      } else if (Notification.permission === 'denied'
-        && window.localStorage.getItem(`pwa.notification.suggested-${eXo.env.portal.userName}`)) {
-        return;
-      }
-
-      if (Notification.permission === 'granted') {
+      } else if (Notification.permission === 'granted') {
         subscribe(registration);
+      } else if (Notification.permission === 'denied'
+        || window.localStorage.getItem(`pwa.notification.suggested-${eXo.env.portal.userName}`)) {
+        return;
       } else {
         const i18n = await exoi18n.loadLanguageAsync(eXo.env.portal.language, `/social/i18n/locale.portlet.Portlets?lang=${eXo.env.portal.language}`);
         window.setTimeout(() => {
