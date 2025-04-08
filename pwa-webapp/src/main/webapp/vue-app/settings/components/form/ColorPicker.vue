@@ -112,7 +112,7 @@ export default {
     },
   },
   created() {
-    this.color = this.value;
+    this.color = this.value || '#FF0000';
   },
   methods: {
     cancel() {
