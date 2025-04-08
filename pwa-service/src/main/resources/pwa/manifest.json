@@ -5,6 +5,7 @@
   "name": "$name",
   "short_name": "$name",
   "description": "$description",
+  "shortcuts": $shortcuts,
   "icons": [{
     "src": "$largeIconPath&sizes=1024x1024",
     "sizes": "1024x1024",
