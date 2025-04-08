@@ -24,7 +24,7 @@
       sm="12"
       cols="12"
       class="pa-0">
-      <v-switch v-model="manifest.enabled">
+      <v-switch v-model="manifest.enabled" @click="enableManifest">
         <template #label>
           <help-label
             label="pwaSettings.enablePwa"
@@ -48,7 +48,7 @@
       </v-switch>
     </v-col>
     <v-col
-      v-if="manifest.enabled"
+      v-if="enabled"
       md="6"
       cols="12"
       class="pa-0">
@@ -191,14 +191,12 @@ export default {
   },
   data: () => ({
     manifest: null,
+    enabled: false,
     originalManifest: null,
     errorMessage: null,
     loading: false,
   }),
   computed: {
-    enabled() {
-      return this.manifest?.enabled;
-    },
     name() {
       return this.manifest?.name;
     },
@@ -278,12 +276,30 @@ export default {
             this.originalManifest = JSON.parse(JSON.stringify(this.manifest));
           }
           eXo.env.portal.pwaEnabled = this.manifest.enabled;
+          this.enabled = this.manifest.enabled;
         })
         .finally(() => this.loading = false);
     },
     reset() {
       this.$refs?.smallIcon?.reset();
       this.$refs?.largeIcon?.reset();
+    },
+    async enableManifest() {
+      if (!this.enabled) {
+        this.manifest = {
+          enabled: true,
+          name: this.branding?.companyName,
+          description: this.$te('meeds.pwa.manifest.description') ? this.$t('meeds.pwa.manifest.description') : this.branding?.companyName,
+          largeIconPath: '/pwa/rest/manifest/largeIcon',
+          smallIconPath: '/pwa/rest/manifest/smallIcon',
+          themeColor: this.branding?.themeStyle?.primaryColor,
+          backgroundColor: this.branding?.themeStyle?.primaryColor,
+          smallIconUploadId: null,
+          largeIconUploadId: null,
+        };
+      }
+      await this.$nextTick();
+      this.enabled = this.manifest.enabled;
     },
     save() {
       const manifestUpdate = {
