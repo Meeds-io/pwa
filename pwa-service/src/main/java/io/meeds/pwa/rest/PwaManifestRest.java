@@ -69,7 +69,7 @@ public class PwaManifestRest {
                                             @Parameter(description = "The value of version parameter will determine whether the query should be cached by browser or not. If not set, no 'expires HTTP Header will be sent'")
                                             @RequestParam(name = "v", required = false)
                                             String version) {
-    String eTag = String.valueOf(pwaManifestService.getManifestHash());
+    String eTag = String.valueOf(pwaManifestService.getManifestHash(request.getRemoteUser()));
     if (request.checkNotModified(eTag)) {
       return null;
     } else {
@@ -77,7 +77,7 @@ public class PwaManifestRest {
                            .eTag(String.valueOf(eTag))
                            .lastModified(Instant.now())
                            .cacheControl(CacheControl.maxAge(Duration.ofDays(365)))
-                           .body(pwaManifestService.getManifestContent());
+                           .body(pwaManifestService.getManifestContent(request.getRemoteUser()));
     }
   }
 

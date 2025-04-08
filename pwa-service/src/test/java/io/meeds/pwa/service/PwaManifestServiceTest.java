@@ -272,14 +272,13 @@ public class PwaManifestServiceTest {
   public void getManifestHash() throws Exception {
     mockBrandingAttributes();
 
-    long manifestHash = pwaManifestService.getManifestHash();
+    long manifestHash = pwaManifestService.getManifestHash(null);
     assertNotEquals(0l, manifestHash);
-    assertEquals(manifestHash, pwaManifestService.getManifestHash()); // No
-                                                                      // change
+    assertEquals(manifestHash, pwaManifestService.getManifestHash(null)); // No change
 
     mockWithStoredValues();
     pwaManifestService.refreshManifest();
-    assertNotEquals(manifestHash, pwaManifestService.getManifestHash());
+    assertNotEquals(manifestHash, pwaManifestService.getManifestHash(null));
   }
 
   @Test

@@ -25,9 +25,11 @@ import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -65,6 +67,9 @@ import io.meeds.common.ContainerTransactional;
 import io.meeds.pwa.model.ManifestIcon;
 import io.meeds.pwa.model.PwaManifest;
 import io.meeds.pwa.model.PwaManifestUpdate;
+import io.meeds.pwa.model.PwaShortcut;
+import io.meeds.pwa.plugin.PwaShortcutPlugin;
+import io.meeds.social.util.JsonUtils;
 
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
@@ -73,94 +78,99 @@ import lombok.SneakyThrows;
 @Service
 public class PwaManifestService {
 
-  private static final Log      LOG                        = ExoLogger.getExoLogger(PwaManifestService.class);
+  private static final Log        LOG                        = ExoLogger.getExoLogger(PwaManifestService.class);
 
-  public static final String    RESET_ATTACHMENT_ID        = "0";
+  public static final String      RESET_ATTACHMENT_ID        = "0";
 
-  public static final String    DEPRECATED_PUSH_CHANNEL_ID = "PUSH_CHANNEL";
+  public static final String      DEPRECATED_PUSH_CHANNEL_ID = "PUSH_CHANNEL";
 
-  public static final String    PWA_LARGE_ICON_BASE_PATH   = "/pwa/rest/manifest/largeIcon?v=";               // NOSONAR
+  public static final String      PWA_LARGE_ICON_BASE_PATH   = "/pwa/rest/manifest/largeIcon?v=";               // NOSONAR
 
-  public static final String    PWA_SMALL_ICON_BASE_PATH   = "/pwa/rest/manifest/smallIcon?v=";               // NOSONAR
+  public static final String      PWA_SMALL_ICON_BASE_PATH   = "/pwa/rest/manifest/smallIcon?v=";               // NOSONAR
 
-  public static final String    FILE_API_NAME_SPACE        = "CompanyBranding";
+  public static final String      FILE_API_NAME_SPACE        = "CompanyBranding";
 
-  public static final String    PWA_LARGE_ICON_NAME        = "largeIcon.png";
+  public static final String      PWA_LARGE_ICON_NAME        = "largeIcon.png";
 
-  public static final String    PWA_SMALL_ICON_NAME        = "smallIcon.png";
+  public static final String      PWA_SMALL_ICON_NAME        = "smallIcon.png";
 
-  public static final String    PWA_FEATURE                = "pwa";
+  public static final String      PWA_FEATURE                = "pwa";
 
-  public static final String    PWA_NAME                   = "pwa.name";
+  public static final String      PWA_NAME                   = "pwa.name";
 
-  public static final String    PWA_DESCRIPTION            = "pwa.description";
+  public static final String      PWA_DESCRIPTION            = "pwa.description";
 
-  public static final String    PWA_BACKGROUND_COLOR       = "pwa.backgroundColor";
+  public static final String      PWA_BACKGROUND_COLOR       = "pwa.backgroundColor";
 
-  public static final String    PWA_THEME_COLOR            = "pwa.themeColor";
+  public static final String      PWA_THEME_COLOR            = "pwa.themeColor";
 
-  public static final String    PWA_LARGE_ICON             = "pwa.illustration512";
+  public static final String      PWA_LARGE_ICON             = "pwa.illustration512";
 
-  public static final String    PWA_SMALL_ICON             = "pwa.illustration71";
+  public static final String      PWA_SMALL_ICON             = "pwa.illustration71";
 
-  public static final boolean   DEVELOPPING                = PropertyManager.isDevelopping();
+  public static final boolean     DEVELOPPING                = PropertyManager.isDevelopping();
 
-  public static final String    DEFAULT_DOMAIN_NAME        = "localhost";
+  public static final String      DEFAULT_DOMAIN_NAME        = "localhost";
 
-  public static final String    DOMAIN_URL_PARAM_NAME      = "gatein.email.domain.url";
+  public static final String      SHORTCUTS_NAME             = "$shortcuts";
 
-  @Autowired
-  private SettingService        settingService;
-
-  @Autowired
-  private FileService           fileService;
+  public static final String      DOMAIN_URL_PARAM_NAME      = "gatein.email.domain.url";
 
   @Autowired
-  private UploadService         uploadService;
+  private SettingService          settingService;
 
   @Autowired
-  private BrandingService       brandingService;
+  private FileService             fileService;
 
   @Autowired
-  private ConfigurationManager  configurationManager;
+  private UploadService           uploadService;
 
   @Autowired
-  private ExoFeatureService     featureService;
+  private BrandingService         brandingService;
 
   @Autowired
-  private ResourceBundleService resourceBundleService;
+  private ConfigurationManager    configurationManager;
 
   @Autowired
-  private ImageThumbnailService imageThumbnailService;
+  private ExoFeatureService       featureService;
 
   @Autowired
-  private ImageResizeService    imageResizeService;
+  private ResourceBundleService   resourceBundleService;
 
   @Autowired
-  private ChannelManager        channelManager;
+  private ImageThumbnailService   imageThumbnailService;
 
   @Autowired
-  private ListenerService       listenerService;
+  private ImageResizeService      imageResizeService;
+
+  @Autowired
+  private ChannelManager          channelManager;
+
+  @Autowired
+  private ListenerService         listenerService;
 
   @Value("${pwa.manifest.id:}")
-  private String                manifestId;
+  private String                  manifestId;
 
   @Value("${pwa.manifest.version:}")
-  private String                manifestVersion;
+  private String                  manifestVersion;
 
   @Value("${pwa.manifest.description:}")
-  private String                manifestDescriptionKey;
+  private String                  manifestDescriptionKey;
 
   @Getter
   @Value("${pwa.manifest.path:jar:/pwa/manifest.json}")
-  private String                pwaManifestPath;
+  private String                  pwaManifestPath;
+
+  @Autowired(required = false)
+  private List<PwaShortcutPlugin> shortcutPlugins;
 
   @Getter
-  private PwaManifest           pwaManifest                = new PwaManifest();
+  private PwaManifest             pwaManifest                = new PwaManifest();
 
-  private ManifestIcon          largeIcon                  = null;
+  private ManifestIcon            largeIcon                  = null;
 
-  private ManifestIcon          smallIcon                  = null;
+  private ManifestIcon            smallIcon                  = null;
 
   @PostConstruct
   @ContainerTransactional
@@ -177,16 +187,28 @@ public class PwaManifestService {
     return pwaManifest.isEnabled();
   }
 
-  public long getManifestHash() {
-    return Objects.hash(brandingService.getLastUpdatedTime(), Objects.hash(getManifestContent()));
+  public long getManifestHash(String username) {
+    return Objects.hash(brandingService.getLastUpdatedTime(), Objects.hash(getManifestContent(username)));
   }
 
-  public String getManifestContent() {
+  public String getManifestContent(String username) {
+    String content;
     if (pwaManifest.getContent() == null) {
       computePwaProperties();
-      return pwaManifest.getContent(brandingService.getBrandingInformation(false));
+      content = pwaManifest.getContent(brandingService.getBrandingInformation(false));
     } else {
-      return pwaManifest.getContent();
+      content = pwaManifest.getContent();
+    }
+    if (content == null) {
+      return null;
+    } else if (StringUtils.isNotBlank(username) && CollectionUtils.isNotEmpty(shortcutPlugins)) {
+      List<PwaShortcut> shortcuts = shortcutPlugins.stream()
+                                                   .map(p -> p.getShortcuts(username))
+                                                   .flatMap(List::stream)
+                                                   .toList();
+      return content.replace(SHORTCUTS_NAME, JsonUtils.toJsonString(shortcuts));
+    } else {
+      return content.replace(SHORTCUTS_NAME, "[]");
     }
   }
 
@@ -217,7 +239,7 @@ public class PwaManifestService {
       this.pwaManifest.setContent(null);
       this.largeIcon = null;
       this.smallIcon = null;
-      this.getManifestContent();
+      this.getManifestContent(username);
     }
   }
 
