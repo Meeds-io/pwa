@@ -274,8 +274,7 @@ public class PwaManifestServiceTest {
 
     long manifestHash = pwaManifestService.getManifestHash();
     assertNotEquals(0l, manifestHash);
-    assertEquals(manifestHash, pwaManifestService.getManifestHash()); // No
-                                                                      // change
+    assertEquals(manifestHash, pwaManifestService.getManifestHash()); // No change
 
     mockWithStoredValues();
     pwaManifestService.refreshManifest();
