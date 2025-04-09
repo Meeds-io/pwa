@@ -76,7 +76,7 @@ public class PwaManifestRest {
       return ResponseEntity.ok()
                            .eTag(String.valueOf(eTag))
                            .lastModified(Instant.now())
-                           .cacheControl(CacheControl.maxAge(Duration.ofDays(365)))
+                           .cacheControl(CacheControl.maxAge(Duration.ofMinutes(1)))
                            .body(pwaManifestService.getManifestContent(request.getRemoteUser()));
     }
   }
