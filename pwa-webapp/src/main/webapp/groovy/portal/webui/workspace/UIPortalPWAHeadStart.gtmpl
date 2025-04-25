@@ -1,4 +1,5 @@
 <%
+  import org.exoplatform.portal.application.PortalRequestContext;
   import org.exoplatform.container.ExoContainerContext;
   import io.meeds.pwa.service.PwaManifestService;
 
@@ -9,6 +10,6 @@
 %><meta name="theme-color" content="<%=pwaManifestService.getThemeColor()%>"/>
 <%
   if (pwaManifestService.isPwaEnabled()) {
-%><link rel="manifest" href="<%="/pwa/rest/manifest?v=" + pwaManifestService.getManifestHash()%>"><%
+%><link rel="manifest" href="<%="/pwa/rest/manifest"%>" crossorigin="use-credentials"><%
   }
 %>
