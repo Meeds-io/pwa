@@ -32,7 +32,7 @@ import io.meeds.portal.permlink.model.PermanentLinkObject;
 import io.meeds.portal.permlink.service.PermanentLinkService;
 import io.meeds.pwa.model.PwaNotificationMessage;
 import io.meeds.pwa.plugin.PwaNotificationPlugin;
-import io.meeds.social.permlink.plugin.UserProfilePermanentLinkPlugin;
+import io.meeds.social.user.plugin.UserProfilePermanentLinkPlugin;
 
 import lombok.Getter;
 
