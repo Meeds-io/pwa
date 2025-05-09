@@ -29,6 +29,7 @@ import org.exoplatform.social.core.manager.IdentityManager;
 
 import io.meeds.pwa.model.PwaNotificationMessage;
 import io.meeds.pwa.plugin.PwaNotificationPlugin;
+
 import lombok.Getter;
 
 @Profile("notes")

@@ -38,7 +38,7 @@ import io.meeds.gamification.utils.Utils;
 import io.meeds.portal.permlink.model.PermanentLinkObject;
 import io.meeds.pwa.model.PwaNotificationMessage;
 import io.meeds.pwa.plugin.social.BaseActivityPwaNotificationPlugin;
-import io.meeds.social.permlink.plugin.ActivityPermanentLinkPlugin;
+import io.meeds.social.activity.plugin.ActivityPermanentLinkPlugin;
 import io.meeds.social.translation.service.TranslationService;
 
 @Profile("gamification")
@@ -66,7 +66,7 @@ public class GamificationActionAnnouncedPwaNotificationPlugin extends BaseActivi
     PwaNotificationMessage notificationMessage = new PwaNotificationMessage();
     long realizationId = Long.parseLong(notification.getValueOwnerParameter(Utils.ANNOUNCEMENT_ID_NOTIFICATION_PARAM));
     RealizationDTO realization = realizationService.getRealizationById(realizationId);
-    Identity earner = identityManager.getIdentity(realization.getEarnerId());
+    Identity earner = identityManager.getIdentity(Long.parseLong(realization.getEarnerId()));
     notificationMessage.setTitle(resourceBundleService.getSharedString(TITLE_LABEL_KEY, localeConfig.getLocale())
                                                       .replace("{0}", earner.getProfile().getFullName()));
 

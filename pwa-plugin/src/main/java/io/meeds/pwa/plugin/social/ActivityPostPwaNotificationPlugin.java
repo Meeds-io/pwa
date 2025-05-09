@@ -25,7 +25,7 @@ import org.exoplatform.services.resources.LocaleConfig;
 
 import io.meeds.portal.permlink.model.PermanentLinkObject;
 import io.meeds.pwa.model.PwaNotificationMessage;
-import io.meeds.social.permlink.plugin.ActivityPermanentLinkPlugin;
+import io.meeds.social.activity.plugin.ActivityPermanentLinkPlugin;
 
 @Component
 public class ActivityPostPwaNotificationPlugin extends BaseActivityPwaNotificationPlugin {
