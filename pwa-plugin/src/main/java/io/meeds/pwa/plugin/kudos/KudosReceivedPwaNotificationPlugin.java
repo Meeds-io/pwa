@@ -28,7 +28,7 @@ import org.exoplatform.social.notification.plugin.SocialNotificationUtils;
 import io.meeds.portal.permlink.model.PermanentLinkObject;
 import io.meeds.pwa.model.PwaNotificationMessage;
 import io.meeds.pwa.plugin.social.BaseActivityPwaNotificationPlugin;
-import io.meeds.social.permlink.plugin.ActivityPermanentLinkPlugin;
+import io.meeds.social.activity.plugin.ActivityPermanentLinkPlugin;
 
 @Profile("kudos")
 @Component
