@@ -37,7 +37,7 @@ import io.meeds.portal.permlink.model.PermanentLinkObject;
 import io.meeds.portal.permlink.service.PermanentLinkService;
 import io.meeds.pwa.model.PwaNotificationMessage;
 import io.meeds.pwa.plugin.PwaNotificationPlugin;
-import io.meeds.social.permlink.plugin.ActivityPermanentLinkPlugin;
+import io.meeds.social.activity.plugin.ActivityPermanentLinkPlugin;
 import io.meeds.social.translation.service.TranslationService;
 
 @Profile("gamification")
