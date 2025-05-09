@@ -142,50 +142,50 @@ public abstract class BaseActivityPwaNotificationPlugin implements PwaNotificati
   }
 
   protected String getSender(NotificationInfo notification) {
-    String username = notification.getFrom();
-    if (StringUtils.isBlank(username)) {
-      username = notification.getOwnerParameter().get("poster");
+    String userId = notification.getFrom();
+    if (StringUtils.isBlank(userId)) {
+      userId = notification.getOwnerParameter().get("poster");
     }
-    if (StringUtils.isBlank(username)) {
-      username = notification.getOwnerParameter().get("username");
+    if (StringUtils.isBlank(userId)) {
+      userId = notification.getOwnerParameter().get("username");
     }
-    if (StringUtils.isBlank(username)) {
-      username = notification.getOwnerParameter().get("profile");
+    if (StringUtils.isBlank(userId)) {
+      userId = notification.getOwnerParameter().get("profile");
     }
-    if (StringUtils.isBlank(username)) {
-      username = notification.getOwnerParameter().get("sender");
+    if (StringUtils.isBlank(userId)) {
+      userId = notification.getOwnerParameter().get("sender");
     }
-    if (StringUtils.isBlank(username)) {
-      username = notification.getOwnerParameter().get("modifier");
+    if (StringUtils.isBlank(userId)) {
+      userId = notification.getOwnerParameter().get("modifier");
     }
-    if (StringUtils.isBlank(username)) {
-      username = notification.getOwnerParameter().get("MODIFIER_ID");
+    if (StringUtils.isBlank(userId)) {
+      userId = notification.getOwnerParameter().get("MODIFIER_ID");
     }
-    if (StringUtils.isBlank(username)) {
-      username = notification.getOwnerParameter().get("SENDER_ID");
+    if (StringUtils.isBlank(userId)) {
+      userId = notification.getOwnerParameter().get("SENDER_ID");
     }
-    if (StringUtils.isBlank(username)) {
-      username = notification.getOwnerParameter().get("request_from");
+    if (StringUtils.isBlank(userId)) {
+      userId = notification.getOwnerParameter().get("request_from");
     }
-    if (StringUtils.isBlank(username)) {
-      username = notification.getOwnerParameter().get("likersId");
+    if (StringUtils.isBlank(userId)) {
+      userId = notification.getOwnerParameter().get("likersId");
     }
-    if (StringUtils.isBlank(username)) {
-      username = notification.getOwnerParameter().get("creator");
+    if (StringUtils.isBlank(userId)) {
+      userId = notification.getOwnerParameter().get("creator");
     }
-    if (StringUtils.isBlank(username)) {
-      username = notification.getOwnerParameter().get("creatorId");
+    if (StringUtils.isBlank(userId)) {
+      userId = notification.getOwnerParameter().get("creatorId");
     }
-    if (StringUtils.isBlank(username)) {
+    if (StringUtils.isBlank(userId)) {
       return null;
     } else {
-      Identity identity = identityManager.getOrCreateUserIdentity(username);
+      Identity identity = identityManager.getOrCreateUserIdentity(userId);
       if (identity != null) {
         return identity.getRemoteId();
       }
     }
-    if (StringUtils.isNumeric(username)) {
-      Identity identity = identityManager.getIdentity(username);
+    if (StringUtils.isNumeric(userId)) {
+      Identity identity = identityManager.getIdentity(Long.parseLong(userId));
       if (identity != null) {
         return identity.getRemoteId();
       }
