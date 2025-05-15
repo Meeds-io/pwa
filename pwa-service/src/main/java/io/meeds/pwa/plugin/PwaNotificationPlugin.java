@@ -29,6 +29,7 @@ import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceService;
 
 import io.meeds.pwa.model.PwaNotificationMessage;
+import io.meeds.social.html.utils.HtmlUtils;
 
 @FunctionalInterface
 public interface PwaNotificationPlugin {
@@ -67,7 +68,7 @@ public interface PwaNotificationPlugin {
   }
 
   default String htmlToText(String html) {
-    return html == null ? "" : Jsoup.parse(html).text();
+    return html == null ? "" : Jsoup.parse(HtmlUtils.transform(html, null)).text();
   }
 
   default void handleAction(NotificationInfo notification, String action, String username) {
