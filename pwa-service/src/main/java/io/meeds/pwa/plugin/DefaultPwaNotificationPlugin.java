@@ -49,7 +49,7 @@ public class DefaultPwaNotificationPlugin implements PwaNotificationPlugin {
     String subjectKey = templateConfig.getKeyValue(PluginConfig.SUBJECT_KEY, getDefaultKey(DEFAULT_SUBJECT_KEY, pluginId));
     String title = TemplateUtils.getResourceBundle(subjectKey, localeConfig.getLocale(), bundlePath);
     PwaNotificationMessage pwaNotificationMessage = new PwaNotificationMessage();
-    pwaNotificationMessage.setTitle(title);
+    pwaNotificationMessage.setTitle(htmlToText(title));
     return pwaNotificationMessage;
   }
 
