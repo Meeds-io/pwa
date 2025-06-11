@@ -1,5 +1,61 @@
 self.addEventListener('install', event => self.skipWaiting());
 
+const offlineVersion = 1;
+const offlineUrl = `/pwa/html/offline.html?v=${offlineVersion}`;
+const offlineAssets = [
+  `/platform-ui/skin/fonts/flUhRq6tzZclQEJ-Vdg-IuiaDsNc.woff2`,
+  `/platform-ui/skin/fonts/fa-solid-900.woff2?v=offline-v${offlineVersion}`,
+  `/platform-ui/skin/fonts/fa-regular-400.woff2?v=offline-v${offlineVersion}`,
+  `/platform-ui/skin/fonts/materialdesignicons-webfont.woff2?v=offline-v${offlineVersion}`,
+  `/portal/rest/v1/platform/branding/css?v=offline-v${offlineVersion}`,
+  `/platform-ui/skin/css/core.css?orientation=LT&minify=true&hash=0&v=offline-v${offlineVersion}`,
+  `/platform-ui/skin/css/vuetify-all.css?orientation=LT&minify=true&hash=0&v=offline-v${offlineVersion}`,
+  `/social/js/bootstrap.js?hash=0&scope=SHARED&minify=true&v=offline-v${offlineVersion}`,
+  `/social/js/vueGRP.js?hash=0&scope=GROUP&minify=true&v=offline-v${offlineVersion}`,
+  `/social/js/baseGRP.js?hash=0&scope=GROUP&minify=true&v=offline-v${offlineVersion}`,
+  `/pwa/js/pwaOfflineGRP.js?hash=0&scope=GROUP&minify=true&v=offline-v${offlineVersion}`,
+];
+
+const enableNavigationPreload = async () => {
+  if (self?.registration?.navigationPreload) {
+    await self.registration.navigationPreload.enable();
+  }
+};
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(enableNavigationPreload());
+});
+
+const putInCache = async (request, response) => {
+  const cache = await caches.open('v1');
+  await cache.put(request, response);
+};
+
+const requestWithFallback = async ({ request }) => {
+  let response;
+  try {
+    response = await fetch(request);
+    if (response.headers.get('Content-Type') === 'text/html') {
+      let fallbackResponse = await caches.match(offlineUrl);
+      if (!fallbackResponse) {
+        fallbackResponse = await fetch(offlineUrl);
+        putInCache(offlineUrl, fallbackResponse.clone());
+      }
+    }
+    return response;
+  } catch (error) {
+    if (request.destination === 'document') {
+      return caches.match(offlineUrl);
+    } else {
+      throw error;
+    }
+  }
+};
+
+self.addEventListener('fetch', (event) => {
+  event.respondWith(requestWithFallback(event));
+});
+
 self.addEventListener('push', (event) => {
   if (self?.Notification?.permission === 'granted') {
     const data = event?.data?.text?.() || {};
