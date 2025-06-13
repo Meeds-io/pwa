@@ -43,5 +43,7 @@ export function init() {
         vuetify: Vue.prototype.vuetifyOptions,
       }, `#${appId}`, 'PWA Offline App')
     ))
-    .finally(() => Vue.prototype.$utils.includeExtensions('PWAOfflineApp'));
+    .finally(() => {
+      Vue.prototype.$utils.includeExtensions('PWAOfflineApp');
+    });
 }

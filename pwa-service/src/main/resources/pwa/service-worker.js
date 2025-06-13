@@ -2,6 +2,7 @@ const offlineVersion = 1;
 const offlineUrl = `/pwa/html/offline.html?v=${offlineVersion}`;
 const offlineAssets = [
   offlineUrl,
+  '/portal/rest/v1/platform/branding/favicon',
   '/platform-ui/skin/fonts/flUhRq6tzZclQEJ-Vdg-IuiaDsNc.woff2',
   '/platform-ui/skin/fonts/fa-solid-900.woff2',
   '/platform-ui/skin/fonts/fa-regular-400.woff2',
@@ -33,15 +34,16 @@ const activate = async () => {
 
 const populateCache = async () => {
   if (!await caches.has(CACHE_NAME)) {
+    const language = await getLang();
     await Promise.all(offlineAssets.map(async url => {
-      fallbackResponse = await fetch(`${url}${url.includes('?') ? '&' : '?'}v=offline-v${offlineVersion}`);
+      fallbackResponse = await fetch(`${url}${url.includes('/i18n/') ? `?lang=${language}` : ''}${url.includes('?') ? '&' : '?'}v=offline-v${offlineVersion}`);
       await putInCache(url, fallbackResponse.clone());
     }));
   }
 };
 
 const CACHE_NAME = `v${offlineVersion}`;
-const putInCache = async (request, response) => {
+async function putInCache(request, response) {
   const cache = await caches.open(CACHE_NAME);
   await cache.put(request, response);
 };
@@ -55,30 +57,56 @@ const requestWithFallback = async ({ request }) => {
       await populateCache();
     } else if (assetUrl) {
       putInCache(assetUrl, response.clone());
+      let language = await getLang();
+      if (!language?.length && assetUrl.includes('/i18n/') && request?.url?.includes('lang=')) {
+        language = request.url.match(/lang=([^&]+)(&|$)/i)?.[1]
+        if (language?.length) {
+          setLang(language);
+        }
+      }
     }
     return response;
   } catch (error) {
     const url = request.destination === 'document' ? offlineUrl : assetUrl;
     if (url) {
       const cache = await caches.open(CACHE_NAME);
-      return cache.match(url);
+      return await cache.match(url);
     } else {
       throw error;
     }
   }
 };
 
-self.addEventListener('install', event => self.skipWaiting());
+let lang;
+async function getLang() {
+  if (!lang) {
+    const cache = await caches.open(CACHE_NAME);
+    const resp = await cache.match('lang');
+    lang = await resp?.text?.();
+  }
+  return lang || navigator.language;
+};
 
-self.addEventListener('activate', (event) => {
-  event.waitUntil(activate());
+async function setLang(language) {
+  const cache = await caches.open(CACHE_NAME);
+  await cache.put('lang', new Response(language));
+};
+
+self.addEventListener('install', event => {
+  event.waitUntil(populateCache());
+  self.skipWaiting();
 });
 
-self.addEventListener('fetch', (event) => {
+self.addEventListener('activate', event => {
+  event.waitUntil(activate());
+  self.skipWaiting();
+});
+
+self.addEventListener('fetch', event => {
   event.respondWith(requestWithFallback(event));
 });
 
-self.addEventListener('push', (event) => {
+self.addEventListener('push', event => {
   if (self?.Notification?.permission === 'granted') {
     const data = event?.data?.text?.() || {};
     const action = data.split(':')[1]
@@ -138,7 +166,7 @@ self.addEventListener('push', (event) => {
   }
 });
 
-self.addEventListener('notificationclick', (event) => {
+self.addEventListener('notificationclick', event => {
   const url = event.notification.data.url;
   event.waitUntil(new Promise(async (resolve) => {
     event.notification.close();
@@ -188,7 +216,7 @@ self.addEventListener('notificationclick', (event) => {
   }));
 });
 
-self.addEventListener('notificationclose', (event) => {
+self.addEventListener('notificationclose', event => {
   const notificationId = event?.notification?.data?.notificationId || event?.notification?.tag;
   if (notificationId) {
     event.waitUntil(new Promise(async (resolve) => {
