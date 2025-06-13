@@ -33,12 +33,15 @@ const appId = 'OfflineApplication';
 
 export function init() {
   exoi18n.loadLanguageAsync(lang, url)
-    .then(i18n => {
+    .then(i18n => new Promise(resolve =>
       Vue.createApp({
+        created() {
+          resolve();
+        },
         template: `<offline-application id="${appId}" />`,
         i18n,
         vuetify: Vue.prototype.vuetifyOptions,
-      }, `#${appId}`, 'PWA Offline App');
-    })
+      }, `#${appId}`, 'PWA Offline App')
+    ))
     .finally(() => Vue.prototype.$utils.includeExtensions('PWAOfflineApp'));
 }

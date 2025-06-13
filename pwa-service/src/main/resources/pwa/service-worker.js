@@ -1,56 +1,78 @@
-self.addEventListener('install', event => self.skipWaiting());
-
 const offlineVersion = 1;
 const offlineUrl = `/pwa/html/offline.html?v=${offlineVersion}`;
 const offlineAssets = [
-  `/platform-ui/skin/fonts/flUhRq6tzZclQEJ-Vdg-IuiaDsNc.woff2`,
-  `/platform-ui/skin/fonts/fa-solid-900.woff2?v=offline-v${offlineVersion}`,
-  `/platform-ui/skin/fonts/fa-regular-400.woff2?v=offline-v${offlineVersion}`,
-  `/platform-ui/skin/fonts/materialdesignicons-webfont.woff2?v=offline-v${offlineVersion}`,
-  `/portal/rest/v1/platform/branding/css?v=offline-v${offlineVersion}`,
-  `/platform-ui/skin/css/core.css?orientation=LT&minify=true&hash=0&v=offline-v${offlineVersion}`,
-  `/platform-ui/skin/css/vuetify-all.css?orientation=LT&minify=true&hash=0&v=offline-v${offlineVersion}`,
-  `/social/js/bootstrap.js?hash=0&scope=SHARED&minify=true&v=offline-v${offlineVersion}`,
-  `/social/js/vueGRP.js?hash=0&scope=GROUP&minify=true&v=offline-v${offlineVersion}`,
-  `/social/js/baseGRP.js?hash=0&scope=GROUP&minify=true&v=offline-v${offlineVersion}`,
-  `/pwa/js/pwaOfflineGRP.js?hash=0&scope=GROUP&minify=true&v=offline-v${offlineVersion}`,
+  offlineUrl,
+  '/platform-ui/skin/fonts/flUhRq6tzZclQEJ-Vdg-IuiaDsNc.woff2',
+  '/platform-ui/skin/fonts/fa-solid-900.woff2',
+  '/platform-ui/skin/fonts/fa-regular-400.woff2',
+  '/platform-ui/skin/fonts/materialdesignicons-webfont.woff2?v=5.9.55',
+  `/portal/rest/v1/platform/branding/css`,
+  `/platform-ui/skin/css/core.css?orientation=LT&minify=true&hash=0`,
+  `/platform-ui/skin/css/vuetify-all.css?orientation=LT&minify=true&hash=0`,
+  `/social/js/bootstrap.js?hash=0&scope=SHARED&minify=true`,
+  `/social/js/vueGRP.js?hash=0&scope=GROUP&minify=true`,
+  `/social/js/baseGRP.js?hash=0&scope=GROUP&minify=true`,
+  `/social/js/purifyGRP.js?hash=0&scope=GROUP&minify=true`,
+  `/cometd/js/cometdGRP.js?hash=0&scope=GROUP&minify=true`,
+  `/pwa/js/pwaOfflineGRP.js?hash=0&scope=GROUP&minify=true`,
+  `/social/i18n/locale.portlet.Portlets`,
+  `/social/i18n/locale.social.Webui`,
+  `/social/i18n/locale.commons.Commons`,
+  `/social/i18n/locale.portlet.social.UserPopup`,
+  `/social/i18n/locale.portlet.social.SpacesListApplication`,
+  `/social/i18n/locale.portal`,
+  `/pwa/i18n/locale.portlet.OfflineApplication`,
 ];
 
-const enableNavigationPreload = async () => {
+const activate = async () => {
   if (self?.registration?.navigationPreload) {
     await self.registration.navigationPreload.enable();
   }
+  await populateCache();
 };
 
-self.addEventListener('activate', (event) => {
-  event.waitUntil(enableNavigationPreload());
-});
+const populateCache = async () => {
+  if (!await caches.has(CACHE_NAME)) {
+    await Promise.all(offlineAssets.map(async url => {
+      fallbackResponse = await fetch(`${url}${url.includes('?') ? '&' : '?'}v=offline-v${offlineVersion}`);
+      await putInCache(url, fallbackResponse.clone());
+    }));
+  }
+};
 
+const CACHE_NAME = `v${offlineVersion}`;
 const putInCache = async (request, response) => {
-  const cache = await caches.open('v1');
+  const cache = await caches.open(CACHE_NAME);
   await cache.put(request, response);
 };
 
 const requestWithFallback = async ({ request }) => {
   let response;
+  const assetUrl = offlineAssets.find(url => request.url?.includes?.(url));
   try {
     response = await fetch(request);
     if (response.headers.get('Content-Type') === 'text/html') {
-      let fallbackResponse = await caches.match(offlineUrl);
-      if (!fallbackResponse) {
-        fallbackResponse = await fetch(offlineUrl);
-        putInCache(offlineUrl, fallbackResponse.clone());
-      }
+      await populateCache();
+    } else if (assetUrl) {
+      putInCache(assetUrl, response.clone());
     }
     return response;
   } catch (error) {
-    if (request.destination === 'document') {
-      return caches.match(offlineUrl);
+    const url = request.destination === 'document' ? offlineUrl : assetUrl;
+    if (url) {
+      const cache = await caches.open(CACHE_NAME);
+      return cache.match(url);
     } else {
       throw error;
     }
   }
 };
+
+self.addEventListener('install', event => self.skipWaiting());
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(activate());
+});
 
 self.addEventListener('fetch', (event) => {
   event.respondWith(requestWithFallback(event));
