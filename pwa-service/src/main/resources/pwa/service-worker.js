@@ -1,4 +1,5 @@
-const offlineVersion = 1;
+const offlineVersion = '@assets-version@';
+const cacheName = `offline`;
 const offlineUrl = `/pwa/html/offline.html?v=${offlineVersion}`;
 const offlineAssets = [
   offlineUrl,
@@ -29,22 +30,32 @@ const activate = async () => {
   if (self?.registration?.navigationPreload) {
     await self.registration.navigationPreload.enable();
   }
+  await clearCache();
   await populateCache();
 };
 
 const populateCache = async () => {
-  if (!await caches.has(CACHE_NAME)) {
+  if (!await caches.has(cacheName)) {
     const language = await getLang();
     await Promise.all(offlineAssets.map(async url => {
       fallbackResponse = await fetch(`${url}${url.includes('/i18n/') ? `?lang=${language}` : ''}${url.includes('?') ? '&' : '?'}v=offline-v${offlineVersion}`);
       await putInCache(url, fallbackResponse.clone());
     }));
+    await setCacheVersion();
   }
 };
 
-const CACHE_NAME = `v${offlineVersion}`;
+const clearCache = async () => {
+  if (await caches.has(cacheName)) {
+    const version = await getCacheVersion();
+    if (version !== offlineVersion) {
+      caches.delete(cacheName);
+    }
+  }
+};
+
 async function putInCache(request, response) {
-  const cache = await caches.open(CACHE_NAME);
+  const cache = await caches.open(cacheName);
   await cache.put(request, response);
 };
 
@@ -69,7 +80,7 @@ const requestWithFallback = async ({ request }) => {
   } catch (error) {
     const url = request.destination === 'document' ? offlineUrl : assetUrl;
     if (url) {
-      const cache = await caches.open(CACHE_NAME);
+      const cache = await caches.open(cacheName);
       return await cache.match(url);
     } else {
       throw error;
@@ -80,7 +91,7 @@ const requestWithFallback = async ({ request }) => {
 let lang;
 async function getLang() {
   if (!lang) {
-    const cache = await caches.open(CACHE_NAME);
+    const cache = await caches.open(cacheName);
     const resp = await cache.match('lang');
     lang = await resp?.text?.();
   }
@@ -88,18 +99,30 @@ async function getLang() {
 };
 
 async function setLang(language) {
-  const cache = await caches.open(CACHE_NAME);
+  const cache = await caches.open(cacheName);
   await cache.put('lang', new Response(language));
 };
 
+async function getCacheVersion() {
+  const cache = await caches.open(cacheName);
+  const resp = await cache.match('version');
+  const version = await resp?.text?.();
+  return version;
+};
+
+async function setCacheVersion() {
+  const cache = await caches.open(cacheName);
+  await cache.put('version', new Response(offlineVersion));
+};
+
 self.addEventListener('install', event => {
-  event.waitUntil(populateCache());
   self.skipWaiting();
+  event.waitUntil(populateCache());
 });
 
 self.addEventListener('activate', event => {
-  event.waitUntil(activate());
   self.skipWaiting();
+  event.waitUntil(activate());
 });
 
 self.addEventListener('fetch', event => {
