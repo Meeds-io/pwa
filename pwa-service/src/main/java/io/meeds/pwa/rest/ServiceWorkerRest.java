@@ -46,21 +46,24 @@ public class ServiceWorkerRest {
   @GetMapping
   @Operation(summary = "Get PWA Service Worker", description = "Get PWA Service Worker", method = "GET")
   @ApiResponses(value = {
-                          @ApiResponse(responseCode = "200", description = "PWA Service Worker retrieved"),
-                          @ApiResponse(responseCode = "304", description = "PWA Service Worker not modified"),
+    @ApiResponse(responseCode = "200", description = "PWA Service Worker retrieved"),
+    @ApiResponse(responseCode = "304", description = "PWA Service Worker not modified"),
   })
   public ResponseEntity<String> getServiceWorkerContent(WebRequest request) {
     String content = pwaSwService.getContent();
     if (content == null) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND);
-    } else if (request.checkNotModified(String.valueOf(content.hashCode()))) {
-      return null;
     } else {
-      return ResponseEntity.ok()
-                           .eTag(String.valueOf(content.hashCode()))
-                           .header("Service-Worker-Allowed", "/")
-                           .contentType(MediaType.valueOf("text/javascript"))
-                           .body(content);
+      content = content.replace("@lang@", request.getLocale().toLanguageTag());
+      if (request.checkNotModified(String.valueOf(content.hashCode()))) {
+        return null;
+      } else {
+        return ResponseEntity.ok()
+                             .eTag(String.valueOf(content.hashCode()))
+                             .header("Service-Worker-Allowed", "/")
+                             .contentType(MediaType.valueOf("text/javascript"))
+                             .body(content);
+      }
     }
   }
 }

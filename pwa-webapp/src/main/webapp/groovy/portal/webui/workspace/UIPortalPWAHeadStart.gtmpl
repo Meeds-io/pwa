@@ -10,6 +10,6 @@
 %><meta name="theme-color" content="<%=pwaManifestService.getThemeColor()%>"/>
 <%
   if (pwaManifestService.isPwaEnabled()) {
-%><link rel="manifest" href="<%="/pwa/rest/manifest"%>" crossorigin="use-credentials"><%
+%><link rel="manifest" href="/pwa/rest/manifest" crossorigin="use-credentials"><%
   }
 %>

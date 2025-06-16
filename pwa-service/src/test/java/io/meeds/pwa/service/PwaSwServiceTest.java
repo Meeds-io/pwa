@@ -28,16 +28,19 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.TestPropertySource;
 
+import org.exoplatform.container.PortalContainer;
 import org.exoplatform.container.configuration.ConfigurationManager;
 
 @SpringBootTest(classes = {
                             PwaSwService.class,
 })
-@TestPropertySource(
-                    properties = {
+@TestPropertySource(properties = {
                                    "pwa.service.worker.path=pwa/service-worker.js",
                     })
 public class PwaSwServiceTest {
+
+  @MockBean
+  private PortalContainer      container;
 
   @MockBean
   private ConfigurationManager configurationManager;
