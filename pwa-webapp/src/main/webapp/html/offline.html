@@ -1,0 +1,78 @@
+<!DOCTYPE html
+    PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+           "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en"
+  dir="ltr">
+<head id="head">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <link rel="shortcut icon" href="/portal/rest/v1/platform/branding/favicon">
+  <link id="brandingSkin" rel="stylesheet" type="text/css"
+    href="/portal/rest/v1/platform/branding/css" />
+  <link id="core" rel="stylesheet" type="text/css"
+    href="/platform-ui/skin/css/core.css?orientation=LT&minify=true&hash=1"
+    skin-type="portal-skin" />
+  <link id="vuetify" rel="stylesheet" type="text/css"
+    href="/platform-ui/skin/css/vuetify-all.css?orientation=LT&minify=true&hash=2"
+    skin-type="portal-skin" />
+  <script type="text/javascript" id="jsConfig">
+    var require = {
+      paths: {
+        'SHARED/base': '/social/js/baseGRP.js?hash=0&scope=GROUP&minify=true',
+        'SHARED/commonVueComponents': '/social/js/vueGRP.js?hash=0&scope=GROUP&minify=true',
+        'SHARED/vue': '/social/js/vueGRP.js?hash=0&scope=GROUP&minify=true',
+        'SHARED/vuetify': '/social/js/vueGRP.js?hash=0&scope=GROUP&minify=true',
+        'SHARED/vueI18n':  '/social/js/vueGRP.js?hash=0&scope=GROUP&minify=true',
+        'SHARED/eXoVueI18n':  '/social/js/vueGRP.js?hash=0&scope=GROUP&minify=true',
+        'SHARED/extensionRegistry': '/social/js/baseGRP.js?hash=0&scope=GROUP&minify=true',
+        'SHARED/jquery': '/social/js/baseGRP.js?hash=0&scope=GROUP&minify=true',
+        'SHARED/commons-cometd3': '/cometd/js/cometdGRP.js?hash=0&scope=GROUP&minify=true',
+        'SHARED/jquery_cometd': '/cometd/js/cometdGRP.js?hash=0&scope=GROUP&minify=true',
+        'SHARED/purify': '/social/js/purifyGRP.js?hash=0&scope=GROUP&minify=true',
+        'SHARED/purifyVue': '/social/js/purifyGRP.js?hash=0&scope=GROUP&minify=true',
+        'SHARED/autoLinker': '/social/js/purifyGRP.js?hash=0&scope=GROUP&minify=true',
+        'SHARED/ExtendedDomPurify': '/social/js/purifyGRP.js?hash=0&scope=GROUP&minify=true',
+        'PORTLET/pwa/OfflineApplication': '/pwa/js/pwaOfflineGRP.js?hash=0&scope=GROUP&minify=true',
+      },
+      shims: {},
+    };
+  </script>
+  <script type="text/javascript" src="/social/js/bootstrap.js?hash=0&scope=SHARED&minify=true" data-id="header-script"></script>
+</head>
+<body style="height: 100%;">
+  <div class="VuetifyApp">
+    <div data-app="true"
+      class="v-application v-application--is-ltr transparent theme--light"
+      id="vuetify-apps"></div>
+  </div>
+  <div class="VuetifyApp">
+    <div data-app="true"
+      class="v-application v-application--is-ltr transparent theme--light"
+      id="drawers-overlay"></div>
+  </div>
+  <div class="Enterprise" id="UIPortalApplication" style="height: 100%;">
+    <div id="UIWorkingWorkspace" class="UIWorkingWorkspace"
+      style="z-index: 0; position: relative;">
+      <div class="UIViewWS" id="UIViewWS">
+        <div id="ParentSiteContainer">
+          <div id="ParentSiteRightContainer">
+            <div id="ParentSiteContainerChildren">
+              <div class="UISiteBody" id="UISiteBody">
+                <div class="UIPortal VuetifyApp" id="UIPortal">
+                  <div id="OfflineApplication">
+                    <script type="text/javascript" id="jsManager">
+                        window.require(["SHARED/base", "SHARED/vue", "SHARED/vuetify", "SHARED/eXoVueI18n", "SHARED/extensionRegistry"], () => {
+                          window.require(["PORTLET/pwa/OfflineApplication"], app => app.init());
+                        });
+                    </script>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

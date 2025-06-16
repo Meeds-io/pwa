@@ -1,6 +1,135 @@
-self.addEventListener('install', event => self.skipWaiting());
+const offlineVersion = '@assets-version@';
+const cacheName = `offline`;
+const offlineUrl = `/pwa/html/offline.html?v=${offlineVersion}`;
+const offlineAssets = [
+  offlineUrl,
+  '/portal/rest/v1/platform/branding/favicon',
+  '/platform-ui/skin/fonts/flUhRq6tzZclQEJ-Vdg-IuiaDsNc.woff2',
+  '/platform-ui/skin/fonts/fa-solid-900.woff2',
+  '/platform-ui/skin/fonts/fa-regular-400.woff2',
+  '/platform-ui/skin/fonts/materialdesignicons-webfont.woff2?v=5.9.55',
+  `/portal/rest/v1/platform/branding/css`,
+  `/platform-ui/skin/css/core.css?orientation=LT&minify=true&hash=1`,
+  `/platform-ui/skin/css/vuetify-all.css?orientation=LT&minify=true&hash=2`,
+  `/social/js/bootstrap.js?hash=0&scope=SHARED&minify=true`,
+  `/social/js/vueGRP.js?hash=0&scope=GROUP&minify=true`,
+  `/social/js/baseGRP.js?hash=0&scope=GROUP&minify=true`,
+  `/social/js/purifyGRP.js?hash=0&scope=GROUP&minify=true`,
+  `/cometd/js/cometdGRP.js?hash=0&scope=GROUP&minify=true`,
+  `/pwa/js/pwaOfflineGRP.js?hash=0&scope=GROUP&minify=true`,
+  `/social/i18n/locale.portlet.Portlets`,
+  `/social/i18n/locale.social.Webui`,
+  `/social/i18n/locale.commons.Commons`,
+  `/social/i18n/locale.portlet.social.UserPopup`,
+  `/social/i18n/locale.portlet.social.SpacesListApplication`,
+  `/social/i18n/locale.portal`,
+  `/pwa/i18n/locale.portlet.OfflineApplication`,
+];
 
-self.addEventListener('push', (event) => {
+const activate = async () => {
+  if (self?.registration?.navigationPreload) {
+    await self.registration.navigationPreload.enable();
+  }
+  await clearCache();
+  await populateCache();
+};
+
+const populateCache = async () => {
+  if (!await caches.has(cacheName)) {
+    const language = await getLang();
+    await Promise.all(offlineAssets.map(async url => {
+      fallbackResponse = await fetch(`${url}${url.includes('/i18n/') ? `?lang=${language}` : ''}${url.includes('?') ? '&' : '?'}v=offline-v${offlineVersion}`);
+      await putInCache(url, fallbackResponse.clone());
+    }));
+    await setCacheVersion();
+  }
+};
+
+const clearCache = async () => {
+  if (await caches.has(cacheName)) {
+    const version = await getCacheVersion();
+    if (version !== offlineVersion) {
+      caches.delete(cacheName);
+    }
+  }
+};
+
+async function putInCache(request, response) {
+  const cache = await caches.open(cacheName);
+  await cache.put(request, response);
+};
+
+const requestWithFallback = async ({ request }) => {
+  let response;
+  const assetUrl = offlineAssets.find(url => request.url?.includes?.(url));
+  try {
+    response = await fetch(request);
+    if (response.headers.get('Content-Type') === 'text/html') {
+      await populateCache();
+    } else if (assetUrl) {
+      putInCache(assetUrl, response.clone());
+      let language = await getLang();
+      if (!language?.length && assetUrl.includes('/i18n/') && request?.url?.includes('lang=')) {
+        language = request.url.match(/lang=([^&]+)(&|$)/i)?.[1]
+        if (language?.length) {
+          setLang(language);
+        }
+      }
+    }
+    return response;
+  } catch (error) {
+    const url = request.destination === 'document' ? offlineUrl : assetUrl;
+    if (url) {
+      const cache = await caches.open(cacheName);
+      return await cache.match(url);
+    } else {
+      throw error;
+    }
+  }
+};
+
+let lang;
+async function getLang() {
+  if (!lang) {
+    const cache = await caches.open(cacheName);
+    const resp = await cache.match('lang');
+    lang = await resp?.text?.();
+  }
+  return lang || navigator.language;
+};
+
+async function setLang(language) {
+  const cache = await caches.open(cacheName);
+  await cache.put('lang', new Response(language));
+};
+
+async function getCacheVersion() {
+  const cache = await caches.open(cacheName);
+  const resp = await cache.match('version');
+  const version = await resp?.text?.();
+  return version;
+};
+
+async function setCacheVersion() {
+  const cache = await caches.open(cacheName);
+  await cache.put('version', new Response(offlineVersion));
+};
+
+self.addEventListener('install', event => {
+  self.skipWaiting();
+  event.waitUntil(populateCache());
+});
+
+self.addEventListener('activate', event => {
+  self.skipWaiting();
+  event.waitUntil(activate());
+});
+
+self.addEventListener('fetch', event => {
+  event.respondWith(requestWithFallback(event));
+});
+
+self.addEventListener('push', event => {
   if (self?.Notification?.permission === 'granted') {
     const data = event?.data?.text?.() || {};
     const action = data.split(':')[1]
@@ -60,7 +189,7 @@ self.addEventListener('push', (event) => {
   }
 });
 
-self.addEventListener('notificationclick', (event) => {
+self.addEventListener('notificationclick', event => {
   const url = event.notification.data.url;
   event.waitUntil(new Promise(async (resolve) => {
     event.notification.close();
@@ -110,7 +239,7 @@ self.addEventListener('notificationclick', (event) => {
   }));
 });
 
-self.addEventListener('notificationclose', (event) => {
+self.addEventListener('notificationclose', event => {
   const notificationId = event?.notification?.data?.notificationId || event?.notification?.tag;
   if (notificationId) {
     event.waitUntil(new Promise(async (resolve) => {
