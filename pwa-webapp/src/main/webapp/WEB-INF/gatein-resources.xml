@@ -51,6 +51,7 @@
   <portlet>
     <name>UserSettingPwa</name>
     <module>
+      <load-group>pwaUserSettingsGRP</load-group>
       <script>
         <minify>false</minify>
         <path>/js/pwaUserSettings.bundle.js</path>

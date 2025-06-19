@@ -45,7 +45,7 @@ export function init() {
   exoi18n.loadLanguageAsync(lang, url).then(i18n => {
     const appElement = document.createElement('div');
     appElement.id = appId;
-    Vue.createApp({
+    return Vue.createApp({
       data: {
         deferredPrompt,
       },
@@ -56,5 +56,7 @@ export function init() {
       i18n,
       vuetify: Vue.prototype.vuetifyOptions,
     }, appElement, 'User Settings PWA');
+  }).finally(() => {
+    Vue.prototype.$utils.includeExtensions('PWAUserSettings');
   });
 }
