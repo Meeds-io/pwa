@@ -115,6 +115,11 @@
             </v-tooltip>
           </v-list-item-action>
         </v-list-item>
+        <extension-registry-components
+          :params="extensionParams"
+          name="PwaUserSettings"
+          type="pwa-user-settings"
+          class=" d-flex flex-column" />
       </v-list>
     </v-card>
   </v-app>
@@ -134,6 +139,15 @@ export default {
   computed: {
     isMobile() {
       return this.$vuetify?.breakpoint?.mdAndDown;
+    },
+    extensionParams() {
+      return {
+        isMobile: this.isMobile,
+        pwaEnabled: this.pwaEnabled,
+        pwaSupported: this.pwaSupported,
+        loading: this.loading,
+        installed: this.installed,
+      };
     },
   },
   watch: {
