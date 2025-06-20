@@ -6,7 +6,6 @@
 <head id="head">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-  <link rel="manifest" href="/pwa/rest/manifest" crossorigin="use-credentials">
   <link rel="shortcut icon" href="/portal/rest/v1/platform/branding/favicon">
   <link id="brandingSkin" rel="stylesheet" type="text/css"
     href="/portal/rest/v1/platform/branding/css" />
@@ -27,7 +26,6 @@
         'SHARED/eXoVueI18n':  '/social/js/vueGRP.js?hash=0&scope=GROUP&minify=true',
         'SHARED/extensionRegistry': '/social/js/baseGRP.js?hash=0&scope=GROUP&minify=true',
         'SHARED/jquery': '/social/js/baseGRP.js?hash=0&scope=GROUP&minify=true',
-        'SHARED/pwa': '/social/js/baseGRP.js?hash=0&scope=GROUP&minify=true',
         'SHARED/commons-cometd3': '/cometd/js/cometdGRP.js?hash=0&scope=GROUP&minify=true',
         'SHARED/jquery_cometd': '/cometd/js/cometdGRP.js?hash=0&scope=GROUP&minify=true',
         'SHARED/purify': '/social/js/purifyGRP.js?hash=0&scope=GROUP&minify=true',
@@ -67,7 +65,6 @@
                           window.eXo.env.portal.language = localStorage.getItem('user-lang');
                           window.require(["SHARED/base", "SHARED/vue", "SHARED/vuetify", "SHARED/eXoVueI18n", "SHARED/extensionRegistry"], () => {
                             window.require(["PORTLET/pwa/OfflineApplication"], app => app.init());
-                            window.require(["SHARED/pwa"], pwa => pwa.init());
                           });
                         });
                     </script>

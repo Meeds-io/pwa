@@ -31,10 +31,11 @@ const offlineAssets = [
   `/pwa/i18n/locale.portlet.OfflineApplication`,
 ];
 
-const activate = async () => {
+const activateCachedResources = async () => {
   if (self?.registration?.navigationPreload) {
     await self.registration.navigationPreload.enable();
   }
+  await caches.delete(cacheName);
   await populateCache();
 };
 
@@ -60,7 +61,8 @@ const populateCache = async () => {
 const checkCache = async () => {
   const version = await getCacheVersion();
   if (version !== getCacheVersionValue()) {
-    caches.delete(cacheName);
+    await caches.delete(cacheName);
+    await populateCache();
   }
 };
 
@@ -79,12 +81,17 @@ const requestWithFallback = async ({ request }) => {
     } else if (assetUrl) {
       await putInCache(assetUrl, response.clone());
     }
+    if (response.status >= 400) {
+      throw new Error();
+    }
     return response;
   } catch (error) {
     const url = request.destination === 'document' ? offlineUrl : assetUrl;
     if (url) {
       const cache = await caches.open(cacheName);
       return await cache.match(url);
+    } else if (response) {
+      return response;
     } else {
       throw error;
     }
@@ -109,11 +116,13 @@ function getCacheVersionValue() {
 };
 
 self.addEventListener('install', event => {
-  event.waitUntil(populateCache());
+  self.skipWaiting();
+  populateCache();
 });
 
 self.addEventListener('activate', event => {
-  event.waitUntil(activate());
+  self.skipWaiting();
+  activateCachedResources();
 });
 
 self.addEventListener('fetch', event => {
