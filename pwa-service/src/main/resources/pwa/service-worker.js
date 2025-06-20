@@ -1,8 +1,13 @@
 const offlineVersion = '@assets-version@';
 const cacheName = `offline`;
+const lang = `@lang@`;
 const offlineUrl = `/pwa/html/offline.html?v=${offlineVersion}`;
+const manifestUrl = '/pwa/rest/manifest';
+const serviceWorkerUrl = '/pwa/rest/service-worker';
 const offlineAssets = [
   offlineUrl,
+  manifestUrl,
+  serviceWorkerUrl,
   '/portal/rest/v1/platform/branding/favicon',
   '/platform-ui/skin/fonts/flUhRq6tzZclQEJ-Vdg-IuiaDsNc.woff2',
   '/platform-ui/skin/fonts/fa-solid-900.woff2',
@@ -30,27 +35,32 @@ const activate = async () => {
   if (self?.registration?.navigationPreload) {
     await self.registration.navigationPreload.enable();
   }
-  await clearCache();
   await populateCache();
+};
+
+const populateCacheEntry = async (url) => {
+  let fallbackResponse;
+  if (url === manifestUrl || url === serviceWorkerUrl) {
+    fallbackResponse = await fetch(url);
+  } else {
+    fallbackResponse = await fetch(`${url}${url.includes('/i18n/') ? `?lang=${lang}` : ''}${url.includes('?') ? '&' : '?'}v=offline-v${offlineVersion}`);
+  }
+  await putInCache(url, fallbackResponse.clone());
 };
 
 const populateCache = async () => {
   if (!await caches.has(cacheName)) {
-    const language = await getLang();
-    await Promise.all(offlineAssets.map(async url => {
-      fallbackResponse = await fetch(`${url}${url.includes('/i18n/') ? `?lang=${language}` : ''}${url.includes('?') ? '&' : '?'}v=offline-v${offlineVersion}`);
-      await putInCache(url, fallbackResponse.clone());
-    }));
+    await Promise.all(offlineAssets.map(async url => populateCacheEntry(url)));
     await setCacheVersion();
+  } else {
+    await checkCache();
   }
 };
 
-const clearCache = async () => {
-  if (await caches.has(cacheName)) {
-    const version = await getCacheVersion();
-    if (version !== offlineVersion) {
-      caches.delete(cacheName);
-    }
+const checkCache = async () => {
+  const version = await getCacheVersion();
+  if (version !== getCacheVersionValue()) {
+    caches.delete(cacheName);
   }
 };
 
@@ -67,14 +77,7 @@ const requestWithFallback = async ({ request }) => {
     if (response.headers.get('Content-Type') === 'text/html') {
       await populateCache();
     } else if (assetUrl) {
-      putInCache(assetUrl, response.clone());
-      let language = await getLang();
-      if (!language?.length && assetUrl.includes('/i18n/') && request?.url?.includes('lang=')) {
-        language = request.url.match(/lang=([^&]+)(&|$)/i)?.[1]
-        if (language?.length) {
-          setLang(language);
-        }
-      }
+      await putInCache(assetUrl, response.clone());
     }
     return response;
   } catch (error) {
@@ -88,21 +91,6 @@ const requestWithFallback = async ({ request }) => {
   }
 };
 
-let lang;
-async function getLang() {
-  if (!lang) {
-    const cache = await caches.open(cacheName);
-    const resp = await cache.match('lang');
-    lang = await resp?.text?.();
-  }
-  return lang || navigator.language;
-};
-
-async function setLang(language) {
-  const cache = await caches.open(cacheName);
-  await cache.put('lang', new Response(language));
-};
-
 async function getCacheVersion() {
   const cache = await caches.open(cacheName);
   const resp = await cache.match('version');
@@ -110,18 +98,21 @@ async function getCacheVersion() {
   return version;
 };
 
+
 async function setCacheVersion() {
   const cache = await caches.open(cacheName);
-  await cache.put('version', new Response(offlineVersion));
+  await cache.put('version', new Response(getCacheVersionValue()));
+};
+
+function getCacheVersionValue() {
+  return `${offlineVersion}-${lang}`;
 };
 
 self.addEventListener('install', event => {
-  self.skipWaiting();
   event.waitUntil(populateCache());
 });
 
 self.addEventListener('activate', event => {
-  self.skipWaiting();
   event.waitUntil(activate());
 });
 

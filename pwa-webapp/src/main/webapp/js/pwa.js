@@ -70,10 +70,13 @@
 
   async function init() {
     if (isPwaDisplay()
-      && eXo.env.portal.userName
-      && eXo.env.portal.pwaEnabled
+      && eXo?.env?.portal?.userName
+      && eXo?.env?.portal?.pwaEnabled
       && 'serviceWorker' in navigator)  {
       initSubscription();
+    }
+    if (navigator?.serviceWorker && eXo?.env?.portal?.language) {
+      localStorage.setItem('user-lang', eXo.env.portal.language);
     }
   }
 
@@ -85,7 +88,7 @@
             scope: '/',
         });
       }
-      if (eXo.developing
+      if (eXo?.developing
         || (
           window.localStorage.getItem('pwa.service-worker.version')
           && window.localStorage.getItem('pwa.service-worker.version') !== eXo.env.client.assetsVersion)) {
