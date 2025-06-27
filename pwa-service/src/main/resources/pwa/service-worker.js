@@ -1,6 +1,7 @@
 const offlineVersion = '@assets-version@';
 const cacheName = `offline`;
 const lang = `@lang@`;
+const offlineModeEnabled = @pwa.offline.enabled@;
 const offlineUrl = `/pwa/html/offline.html?v=${offlineVersion}`;
 const manifestUrl = '/pwa/rest/manifest';
 const serviceWorkerUrl = '/pwa/rest/service-worker';
@@ -31,33 +32,6 @@ const offlineAssets = [
   `/pwa/i18n/locale.portlet.OfflineApplication`,
 ];
 
-const activateCachedResources = async () => {
-  if (self?.registration?.navigationPreload) {
-    await self.registration.navigationPreload.enable();
-  }
-  await caches.delete(cacheName);
-  await populateCache();
-};
-
-const populateCacheEntry = async (url) => {
-  let fallbackResponse;
-  if (url === manifestUrl || url === serviceWorkerUrl) {
-    fallbackResponse = await fetch(url);
-  } else {
-    fallbackResponse = await fetch(`${url}${url.includes('/i18n/') ? `?lang=${lang}` : ''}${url.includes('?') ? '&' : '?'}v=offline-v${offlineVersion}`);
-  }
-  await putInCache(url, fallbackResponse.clone());
-};
-
-const populateCache = async () => {
-  if (!await caches.has(cacheName)) {
-    await Promise.all(offlineAssets.map(async url => populateCacheEntry(url)));
-    await setCacheVersion();
-  } else {
-    await checkCache();
-  }
-};
-
 const checkCache = async () => {
   const version = await getCacheVersion();
   if (version !== getCacheVersionValue()) {
@@ -71,23 +45,49 @@ async function putInCache(request, response) {
   await cache.put(request, response);
 };
 
+const populateCacheEntry = async (url) => {
+  let fallbackResponse;
+  if (url === manifestUrl || url === serviceWorkerUrl) {
+    fallbackResponse = await fetch(url);
+  } else {
+    fallbackResponse = await fetch(`${url}${url.includes('/i18n/') ? `?lang=${lang}` : ''}${url.includes('?') ? '&' : '?'}v=offline-v${offlineVersion}`);
+  }
+  await putInCache(url, fallbackResponse.clone());
+};
+
+const populateCache = async () => {
+  if (offlineModeEnabled) {
+    if (!await caches.has(cacheName)) {
+      await Promise.all(offlineAssets.map(async url => populateCacheEntry(url)));
+      await setCacheVersion();
+    } else {
+      await checkCache();
+    }
+  }
+};
+
+const activateNavigationPreload = async () => {
+  if (self?.registration?.navigationPreload) {
+    await self.registration.navigationPreload.enable();
+  }
+};
+
 const requestWithFallback = async ({ request }) => {
   let response;
   const assetUrl = offlineAssets.find(url => request.url?.includes?.(url));
   try {
     response = await fetch(request);
-    if (response.headers.get('Content-Type') === 'text/html') {
+    if (response.status >= 400) {
+      throw new Error();
+    } else if (response.headers.get('Content-Type') === 'text/html') {
       await populateCache();
     } else if (assetUrl) {
       await putInCache(assetUrl, response.clone());
     }
-    if (response.status >= 400) {
-      throw new Error();
-    }
     return response;
   } catch (error) {
     const url = request.destination === 'document' ? offlineUrl : assetUrl;
-    if (url) {
+    if (url && await checkOffline()) {
       const cache = await caches.open(cacheName);
       return await cache.match(url);
     } else if (response) {
@@ -98,13 +98,21 @@ const requestWithFallback = async ({ request }) => {
   }
 };
 
+async function checkOffline() {
+  try {
+    const response = await fetch('/');
+    return response.status >= 400;
+  } catch {
+    return true;
+  }
+};
+
 async function getCacheVersion() {
   const cache = await caches.open(cacheName);
   const resp = await cache.match('version');
   const version = await resp?.text?.();
   return version;
 };
-
 
 async function setCacheVersion() {
   const cache = await caches.open(cacheName);
@@ -116,18 +124,20 @@ function getCacheVersionValue() {
 };
 
 self.addEventListener('install', event => {
+  event.waitUntil(populateCache());
   self.skipWaiting();
-  populateCache();
 });
 
 self.addEventListener('activate', event => {
-  self.skipWaiting();
-  activateCachedResources();
+  event.waitUntil(clients.claim());
+  activateNavigationPreload();
 });
 
-self.addEventListener('fetch', event => {
-  event.respondWith(requestWithFallback(event));
-});
+if (offlineModeEnabled) {
+  self.addEventListener('fetch', event => {
+    event.respondWith(requestWithFallback(event));
+  });
+}
 
 self.addEventListener('push', event => {
   if (self?.Notification?.permission === 'granted') {
@@ -286,3 +296,5 @@ async function refreshBadge() {
     }
   }
 }
+
+@service-worker-extensions@

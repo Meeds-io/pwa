@@ -73,7 +73,7 @@
       && eXo?.env?.portal?.userName
       && eXo?.env?.portal?.pwaEnabled
       && 'serviceWorker' in navigator)  {
-      initSubscription();
+      await initSubscription();
     }
     if (navigator?.serviceWorker && eXo?.env?.portal?.language) {
       localStorage.setItem('user-lang', eXo.env.portal.language);
@@ -96,6 +96,8 @@
         window.localStorage.setItem('pwa.service-worker.version', eXo.env.client.assetsVersion);
       }
       await navigator.serviceWorker.ready;
+      await Vue.prototype.$utils.includeExtensions('PWARegisterExtension');
+
       navigator.serviceWorker.addEventListener('message', (event) => {
         if (event?.data?.action === 'redirect-path'
            && event.data.url?.includes(window.location.origin)) {
