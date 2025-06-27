@@ -9,12 +9,14 @@ const offlineAssets = [
   offlineUrl,
   manifestUrl,
   serviceWorkerUrl,
+  '/portal/rest/v1/platform/branding?type=json',
+  '/portal/rest/v1/platform/branding/logo',
   '/portal/rest/v1/platform/branding/favicon',
+  `/portal/rest/v1/platform/branding/css`,
   '/platform-ui/skin/fonts/flUhRq6tzZclQEJ-Vdg-IuiaDsNc.woff2',
   '/platform-ui/skin/fonts/fa-solid-900.woff2',
   '/platform-ui/skin/fonts/fa-regular-400.woff2',
   '/platform-ui/skin/fonts/materialdesignicons-webfont.woff2?v=5.9.55',
-  `/portal/rest/v1/platform/branding/css`,
   `/platform-ui/skin/css/core.css?orientation=LT&minify=true&hash=1`,
   `/platform-ui/skin/css/vuetify-all.css?orientation=LT&minify=true&hash=2`,
   `/social/js/bootstrap.js?hash=0&scope=SHARED&minify=true`,
@@ -49,8 +51,10 @@ const populateCacheEntry = async (url) => {
   let fallbackResponse;
   if (url === manifestUrl || url === serviceWorkerUrl) {
     fallbackResponse = await fetch(url);
+  } else if (url.includes('/i18n/')) {
+    fallbackResponse = await fetch(`${url}?lang=${lang}&v=offline-v${offlineVersion}`);
   } else {
-    fallbackResponse = await fetch(`${url}${url.includes('/i18n/') ? `?lang=${lang}` : ''}${url.includes('?') ? '&' : '?'}v=offline-v${offlineVersion}`);
+    fallbackResponse = await fetch(`${url}${url.includes('?') ? '&' : '?'}v=offline-v${offlineVersion}`);
   }
   await putInCache(url, fallbackResponse.clone());
 };

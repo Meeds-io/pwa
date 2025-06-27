@@ -35,6 +35,11 @@ export function init() {
   exoi18n.loadLanguageAsync(lang, url)
     .then(i18n => new Promise(resolve =>
       Vue.createApp({
+        computed: {
+          isMobile() {
+            return this.$vuetify.breakpoint.smAndDown;
+          },
+        },
         created() {
           resolve();
         },
