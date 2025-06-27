@@ -17,9 +17,13 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 import OfflineApp from './components/OfflineApp.vue';
+import OfflineContent from './components/OfflineContent.vue';
+import OfflineToolbar from './components/OfflineToolbar.vue';
 
 const components = {
   'offline-application': OfflineApp,
+  'offline-content': OfflineContent,
+  'offline-toolbar': OfflineToolbar,
 };
 
 for (const key in components) {
