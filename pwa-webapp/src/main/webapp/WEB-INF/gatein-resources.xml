@@ -51,6 +51,7 @@
   <portlet>
     <name>UserSettingPwa</name>
     <module>
+      <load-group>pwaUserSettingsGRP</load-group>
       <script>
         <minify>false</minify>
         <path>/js/pwaUserSettings.bundle.js</path>
@@ -72,6 +73,32 @@
       </depends>
       <depends>
         <module>pwa</module>
+      </depends>
+    </module>
+  </portlet>
+
+  <portlet>
+    <name>OfflineApplication</name>
+    <module>
+      <load-group>pwaOfflineGRP</load-group>
+      <script>
+        <minify>false</minify>
+        <path>/js/offlineApplication.bundle.js</path>
+      </script>
+      <depends>
+        <module>commonVueComponents</module>
+      </depends>
+      <depends>
+        <module>vue</module>
+      </depends>
+      <depends>
+        <module>vuetify</module>
+      </depends>
+      <depends>
+        <module>eXoVueI18n</module>
+      </depends>
+      <depends>
+        <module>extensionRegistry</module>
       </depends>
     </module>
   </portlet>

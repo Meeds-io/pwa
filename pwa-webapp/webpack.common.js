@@ -6,6 +6,7 @@ const config = {
   entry: {
     pwaSettings: './src/main/webapp/vue-app/settings/main.js',
     pwaUserSettings: './src/main/webapp/vue-app/user-settings/main.js',
+    offlineApplication: './src/main/webapp/vue-app/offline/main.js',
   },
   context: path.resolve(__dirname, '.'),
   module: {
