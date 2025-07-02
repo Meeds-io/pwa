@@ -70,10 +70,13 @@
 
   async function init() {
     if (isPwaDisplay()
-      && eXo.env.portal.userName
-      && eXo.env.portal.pwaEnabled
+      && eXo?.env?.portal?.userName
+      && eXo?.env?.portal?.pwaEnabled
       && 'serviceWorker' in navigator)  {
-      initSubscription();
+      await initSubscription();
+    }
+    if (navigator?.serviceWorker && eXo?.env?.portal?.language) {
+      localStorage.setItem('user-lang', eXo.env.portal.language);
     }
   }
 
@@ -85,7 +88,7 @@
             scope: '/',
         });
       }
-      if (eXo.developing
+      if (eXo?.developing
         || (
           window.localStorage.getItem('pwa.service-worker.version')
           && window.localStorage.getItem('pwa.service-worker.version') !== eXo.env.client.assetsVersion)) {
@@ -93,6 +96,15 @@
         window.localStorage.setItem('pwa.service-worker.version', eXo.env.client.assetsVersion);
       }
       await navigator.serviceWorker.ready;
+      await new Promise(resolve => {
+        window.require(['SHARED/commonVueComponents'], () => {
+          (async function() {
+            await Vue.prototype.$utils.includeExtensions('PWARegisterExtension');
+            resolve();
+          })();
+        });
+      });
+
       navigator.serviceWorker.addEventListener('message', (event) => {
         if (event?.data?.action === 'redirect-path'
            && event.data.url?.includes(window.location.origin)) {
