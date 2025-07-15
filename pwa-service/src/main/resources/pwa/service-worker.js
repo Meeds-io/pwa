@@ -77,11 +77,15 @@ const activateNavigationPreload = async () => {
   }
 };
 
-const requestWithFallback = async ({ request }) => {
+const requestWithFallback = async (event) => {
   let response;
+  const request = event.request;
   const assetUrl = offlineAssets.find(url => request.url?.includes?.(url));
   try {
-    response = await fetch(request);
+    response = await event.preloadResponse;
+    if (!response) {
+      response = await fetch(request);
+    }
     if (response.status >= 400) {
       throw new Error();
     } else if (response.headers.get('Content-Type') === 'text/html') {
