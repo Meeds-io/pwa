@@ -165,40 +165,7 @@ self.addEventListener('push', event => {
           }).then(resp => resp.ok && resp.json());
           if (webNotification) {
             const title = webNotification.title || '';
-            delete webNotification.title;
-            webNotification.icon = webNotification.icon || webNotification.image || self.location.origin + '/pwa/rest/manifest/smallIcon?sizes=72x72';
-            webNotification.data = {
-              notificationId,
-              url: self.location.origin + (webNotification.url || '/'),
-            };
-            delete webNotification.url;
-            if (!webNotification.tag) {
-              delete webNotification.tag;
-              delete webNotification.renotify;
-            }
-            if (!webNotification.image) {
-              delete webNotification.image;
-            }
-            if (!webNotification.lang) {
-              delete webNotification.lang;
-            }
-            if (!webNotification.dir) {
-              delete webNotification.dir;
-            }
-            if (!webNotification.body) {
-              delete webNotification.body;
-            }
-            if (!webNotification.vibrate) {
-              delete webNotification.vibrate;
-            }
-            if (!webNotification.badge) {
-              delete webNotification.badge;
-            }
-            if (!Notification.maxActions || !webNotification.actions) {
-              delete webNotification.actions;
-            } else if (webNotification.actions.length > Notification.maxActions) {
-              webNotification.actions = webNotification.actions.slice(0, Notification.maxActions);
-            }
+            prepareNotificationToSend(notificationId, webNotification)
             await self.registration.showNotification(title, webNotification);
             await refreshBadge();
           }
@@ -307,6 +274,44 @@ async function refreshBadge() {
       await navigator?.clearAppBadge?.();
     }
   }
+}
+
+function prepareNotificationToSend(notificationId, webNotification) {
+  delete webNotification.title;
+  webNotification.icon = webNotification.icon || webNotification.image || self.location.origin + '/pwa/rest/manifest/smallIcon?sizes=72x72';
+  webNotification.data = {
+    notificationId,
+    url: self.location.origin + (webNotification.url || '/'),
+  };
+  delete webNotification.url;
+  if (!webNotification.tag) {
+    delete webNotification.tag;
+    delete webNotification.renotify;
+  }
+  if (!webNotification.image) {
+    delete webNotification.image;
+  }
+  if (!webNotification.lang) {
+    delete webNotification.lang;
+  }
+  if (!webNotification.dir) {
+    delete webNotification.dir;
+  }
+  if (!webNotification.body) {
+    delete webNotification.body;
+  }
+  if (!webNotification.vibrate) {
+    delete webNotification.vibrate;
+  }
+  if (!webNotification.badge) {
+    delete webNotification.badge;
+  }
+  if (!Notification.maxActions || !webNotification.actions) {
+    delete webNotification.actions;
+  } else if (webNotification.actions.length > Notification.maxActions) {
+    webNotification.actions = webNotification.actions.slice(0, Notification.maxActions);
+  }
+  return webNotification;
 }
 
 @service-worker-extensions@

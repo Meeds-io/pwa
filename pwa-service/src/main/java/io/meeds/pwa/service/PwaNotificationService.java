@@ -1,8 +1,8 @@
 /*
  * This file is part of the Meeds project (https://meeds.io/).
- * 
+ *
  * Copyright (C) 2022 Meeds Association contact@meeds.io
- * 
+ *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
@@ -11,7 +11,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
@@ -28,9 +28,11 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.ecs.storage.Hash;
 import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -92,6 +94,8 @@ public class PwaNotificationService {
   public static final String           EVENT_NOTIFICATION_ID_PARAM_NAME        = "notificationId";
 
   public static final String           EVENT_ACTION_PARAM_NAME                 = "action";
+
+  public static final String           EVENT_USERNAME_PARAM_NAME               = "username";
 
   public static final String           EVENT_DURATION_PARAM_NAME               = "duration";
 
@@ -180,7 +184,7 @@ public class PwaNotificationService {
                                                       .orElse(defaultPwaNotificationPlugin);
     LocaleConfig localeConfig = getLocaleConfig(username);
     PwaNotificationMessage notificationMessage = notificationPlugin.process(notification, localeConfig);
-    setDefaultNotificationMessageProperties(notificationMessage, notification, localeConfig);
+    setDefaultNotificationMessageProperties(notificationMessage, notification.getId(), localeConfig);
     return notificationMessage;
   }
 
@@ -206,12 +210,26 @@ public class PwaNotificationService {
 
   /**
    * Send a Push Notification to display to user device(s)
-   * 
+   *
    * @param webNotificationId
    */
   public ScheduledFuture<?> create(long webNotificationId) { // NOSONAR
     if (pwaManifestService.isPwaEnabled()) {
       return executorService.schedule(() -> this.sendCreateNotification(webNotificationId), 1, TimeUnit.SECONDS);
+    } else {
+      return null;
+    }
+  }
+
+
+  /**
+   * Send a Push Notification to display to user device(s)
+   *
+   * @param params
+   */
+  public ScheduledFuture<?> create(Map<String, Object> params) { // NOSONAR
+    if (pwaManifestService.isPwaEnabled()) {
+      return executorService.schedule(() -> this.sendNotification(params), 1, TimeUnit.SECONDS);
     } else {
       return null;
     }
@@ -240,36 +258,42 @@ public class PwaNotificationService {
     }
     String notificationId = notification.getId();
     String username = notification.getTo();
+    HashMap<String,Object> params = new HashMap<>();
+    params.put(EVENT_NOTIFICATION_ID_PARAM_NAME, Long.parseLong(notificationId));
+    params.put(EVENT_ACTION_PARAM_NAME, action);
     if (username != null) {
-      return sendNotification(Long.parseLong(notificationId), action, username);
+      params.put(EVENT_USERNAME_PARAM_NAME, username);
+      return sendNotification(params);
     } else if (notification.getSendToUserIds() != null) {
       return notification.getSendToUserIds()
                          .stream()
-                         .map(user -> sendNotification(Long.parseLong(notificationId), action, username))
+                         .map(user -> {
+                           params.put(EVENT_USERNAME_PARAM_NAME, user);
+                           return sendNotification(params);
+                         })
                          .reduce(0, Integer::sum);
     } else {
       return 0;
     }
   }
 
-  private int sendNotification(long notificationId, String action, String username) {
-    List<UserPushSubscription> subscriptions = pwaSubscriptionService.getSubscriptions(username);
+  private int sendNotification(Map<String, Object> params) {
+    String userName = params.get(EVENT_USERNAME_PARAM_NAME).toString();
+    List<UserPushSubscription> subscriptions = pwaSubscriptionService.getSubscriptions(userName);
     return subscriptions.stream()
                         .map(subscription -> {
                           long start = System.currentTimeMillis();
                           try {
-                            String payload = notificationId + ":" + action;
+                            String payload = params.get(EVENT_NOTIFICATION_ID_PARAM_NAME) + ":" + params.get(EVENT_ACTION_PARAM_NAME);
                             HttpResponse httpResponse = sendPushMessage(subscription, payload.getBytes());
                             StatusLine status = httpResponse.getStatusLine();
                             if (status.getStatusCode() == 410) {
                               // Outdated subscription
                               try {
-                                pwaSubscriptionService.deleteSubscription(subscription.getId(), username, false);
+                                pwaSubscriptionService.deleteSubscription(subscription.getId(), userName, false);
                               } finally {
                                 broadcastEvent(EVENT_OUTDATED_SUBSCRIPTION,
-                                               notificationId,
-                                               action,
-                                               username,
+                                               params,
                                                subscription,
                                                httpResponse,
                                                start,
@@ -277,18 +301,14 @@ public class PwaNotificationService {
                               }
                             } else if (status.getStatusCode() < 200 || status.getStatusCode() > 299) {
                               broadcastEvent(EVENT_NOTIFICATION_RESPONSE_ERROR,
-                                             notificationId,
-                                             action,
-                                             username,
+                                             params,
                                              subscription,
                                              httpResponse,
                                              start,
                                              null);
                             } else {
                               broadcastEvent(EVENT_NOTIFICATION_SENT,
-                                             notificationId,
-                                             action,
-                                             username,
+                                             params,
                                              subscription,
                                              httpResponse,
                                              start,
@@ -297,14 +317,12 @@ public class PwaNotificationService {
                             }
                           } catch (Exception e) {
                             LOG.warn("Error while sending push notification {} to user {}. Ignore reattempting and continue processing messages queue.",
-                                     notificationId,
-                                     username,
+                                     params.get(EVENT_NOTIFICATION_ID_PARAM_NAME),
+                                     userName,
                                      e);
 
                             broadcastEvent(EVENT_NOTIFICATION_SENDING_ERROR,
-                                           notificationId,
-                                           action,
-                                           username,
+                                           params,
                                            subscription,
                                            null,
                                            start,
@@ -325,8 +343,8 @@ public class PwaNotificationService {
     return pushService.send(notification);
   }
 
-  private void setDefaultNotificationMessageProperties(PwaNotificationMessage notificationMessage,
-                                                       NotificationInfo notification,
+  public void setDefaultNotificationMessageProperties(PwaNotificationMessage notificationMessage,
+                                                       String notificationId,
                                                        LocaleConfig localeConfig) {
     List<PwaNotificationAction> notificationActions = notificationMessage.getActions();
     if (CollectionUtils.isEmpty(notificationMessage.getActions())
@@ -344,7 +362,7 @@ public class PwaNotificationService {
     notificationMessage.setLang(localeConfig.getLanguage());
     notificationMessage.setDir(localeConfig.getOrientation() == null || localeConfig.getOrientation().isLT() ? "ltr" : "rtl");
     if (StringUtils.isBlank(notificationMessage.getTag())) {
-      notificationMessage.setTag(notification.getId());
+      notificationMessage.setTag(notificationId);
     }
     if (StringUtils.length(notificationMessage.getBody()) > maxBodyLength) {
       notificationMessage.setBody(notificationMessage.getBody().substring(0, maxBodyLength) + "...");
@@ -367,21 +385,16 @@ public class PwaNotificationService {
   }
 
   private void broadcastEvent(String eventName, // NOSONAR
-                              long notificationId,
-                              String action,
-                              String username,
+                              Map<String, Object> params,
                               UserPushSubscription subscription,
                               HttpResponse httpResponse,
                               long start,
                               String errorMessage) {
-    Map<String, Object> params = new HashMap<>();
     params.put(EVENT_SUBSCRIPTION_PARAM_NAME, subscription);
     params.put(EVENT_ERROR_PARAM_NAME, errorMessage);
-    params.put(EVENT_ACTION_PARAM_NAME, action);
     params.put(EVENT_DURATION_PARAM_NAME, (System.currentTimeMillis() - start));
-    params.put(EVENT_NOTIFICATION_ID_PARAM_NAME, notificationId);
     params.put(EVENT_HTTP_RESPONSE_PARAM_NAME, httpResponse);
-    listenerService.broadcast(eventName, username, params);
+    listenerService.broadcast(eventName, params.get(EVENT_USERNAME_PARAM_NAME), params);
   }
 
 }
