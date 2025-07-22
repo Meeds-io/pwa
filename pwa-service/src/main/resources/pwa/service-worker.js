@@ -154,27 +154,31 @@ if (offlineModeEnabled) {
 self.addEventListener('push', event => {
   if (self?.Notification?.permission === 'granted') {
     const data = event?.data?.text?.() || {};
-    const action = data.split(':')[1]
-    event.waitUntil(new Promise(async (resolve, reject) => {
-      try {
-        if (action === 'open') {
-          const notificationId = data.split(':')[0]
-          const webNotification = await fetch(`/pwa/rest/notifications/${notificationId}`, {
-            method: 'GET',
-            credentials: 'include',
-          }).then(resp => resp.ok && resp.json());
-          if (webNotification) {
-            const title = webNotification.title || '';
-            prepareNotificationToSend(notificationId, webNotification)
-            await self.registration.showNotification(title, webNotification);
-            await refreshBadge();
+    const params = data.split(':');
+    const notificationType = params[0];
+    if(notificationType === 'WEB_NOTIFICATION') {
+      const action = params[2]
+      event.waitUntil(new Promise(async (resolve, reject) => {
+        try {
+          if (action === 'open') {
+            const notificationId = params[1]
+            const webNotification = await fetch(`/pwa/rest/notifications/${notificationId}`, {
+              method: 'GET',
+              credentials: 'include',
+            }).then(resp => resp.ok && resp.json());
+            if (webNotification) {
+              const title = webNotification.title || '';
+              prepareNotificationToSend(notificationId, webNotification)
+              await self.registration.showNotification(title, webNotification);
+              await refreshBadge();
+            }
           }
+          resolve();
+        } catch (e) {
+          reject(e);
         }
-        resolve();
-      } catch (e) {
-        reject(e);
-      }
-    }));
+      }));
+    }
   }
 });
 

@@ -201,7 +201,7 @@ public class PwaNotificationServiceTest {
     assertNotNull(future);
     assertEquals(0, (int) future.get());
     verify(pwaSubscriptionService, never()).deleteSubscription(SUBSCRIPTION_ID, TEST_USER, false);
-    verify(pushService).send(argThat(n -> (NOTIFICATION_ID + ":" +
+    verify(pushService).send(argThat(n -> ("WEB_NOTIFICATION" + ":" + NOTIFICATION_ID + ":" +
         PWA_NOTIFICATION_OPEN_UI_ACTION).equals(new String(n.getPayload()))));
 
     when(statusLine.getStatusCode()).thenReturn(410);

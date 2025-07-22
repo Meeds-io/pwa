@@ -95,6 +95,10 @@ public class PwaNotificationService {
 
   public static final String           EVENT_ACTION_PARAM_NAME                 = "action";
 
+  public static final String           EVENT_NOTIFICATION_TYPE_PARAM_NAME      = "type";
+
+  public static final String           WEB_NOTIFICATION                        = "WEB_NOTIFICATION";
+
   public static final String           EVENT_USERNAME_PARAM_NAME               = "username";
 
   public static final String           EVENT_DURATION_PARAM_NAME               = "duration";
@@ -159,8 +163,7 @@ public class PwaNotificationService {
 
   @PostConstruct
   public void init() {
-    ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat("PWA-Push-Notification-%d")
-                                                            .build();
+    ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat("PWA-Push-Notification-%d").build();
     executorService = Executors.newScheduledThreadPool(poolSize, threadFactory);
   }
 
@@ -221,7 +224,6 @@ public class PwaNotificationService {
     }
   }
 
-
   /**
    * Send a Push Notification to display to user device(s)
    *
@@ -258,9 +260,10 @@ public class PwaNotificationService {
     }
     String notificationId = notification.getId();
     String username = notification.getTo();
-    HashMap<String,Object> params = new HashMap<>();
+    HashMap<String, Object> params = new HashMap<>();
     params.put(EVENT_NOTIFICATION_ID_PARAM_NAME, Long.parseLong(notificationId));
     params.put(EVENT_ACTION_PARAM_NAME, action);
+    params.put(EVENT_NOTIFICATION_TYPE_PARAM_NAME, WEB_NOTIFICATION);
     if (username != null) {
       params.put(EVENT_USERNAME_PARAM_NAME, username);
       return sendNotification(params);
@@ -284,7 +287,11 @@ public class PwaNotificationService {
                         .map(subscription -> {
                           long start = System.currentTimeMillis();
                           try {
-                            String payload = params.get(EVENT_NOTIFICATION_ID_PARAM_NAME) + ":" + params.get(EVENT_ACTION_PARAM_NAME);
+                            String notificationType =
+                                                    StringUtils.isNotBlank((String) params.get(EVENT_NOTIFICATION_TYPE_PARAM_NAME)) ? (String) params.get(EVENT_NOTIFICATION_TYPE_PARAM_NAME)
+                                                                                                                                    : WEB_NOTIFICATION;
+                            String payload = notificationType + ":" + params.get(EVENT_NOTIFICATION_ID_PARAM_NAME) + ":"
+                                + params.get(EVENT_ACTION_PARAM_NAME);
                             HttpResponse httpResponse = sendPushMessage(subscription, payload.getBytes());
                             StatusLine status = httpResponse.getStatusLine();
                             if (status.getStatusCode() == 410) {
@@ -307,12 +314,15 @@ public class PwaNotificationService {
                                              start,
                                              null);
                             } else {
-                              broadcastEvent(EVENT_NOTIFICATION_SENT,
-                                             params,
-                                             subscription,
-                                             httpResponse,
-                                             start,
-                                             null);
+                              // Other push notifications managed by specific application should create their own statistics
+                              if(params.get(EVENT_NOTIFICATION_TYPE_PARAM_NAME).equals(WEB_NOTIFICATION)) {
+                                broadcastEvent(EVENT_NOTIFICATION_SENT,
+                                        params,
+                                        subscription,
+                                        httpResponse,
+                                        start,
+                                        null);
+                              }
                               return 1;
                             }
                           } catch (Exception e) {
