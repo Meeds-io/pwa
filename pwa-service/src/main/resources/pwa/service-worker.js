@@ -154,60 +154,31 @@ if (offlineModeEnabled) {
 self.addEventListener('push', event => {
   if (self?.Notification?.permission === 'granted') {
     const data = event?.data?.text?.() || {};
-    const action = data.split(':')[1]
-    event.waitUntil(new Promise(async (resolve, reject) => {
-      try {
-        if (action === 'open') {
-          const notificationId = data.split(':')[0]
-          const webNotification = await fetch(`/pwa/rest/notifications/${notificationId}`, {
-            method: 'GET',
-            credentials: 'include',
-          }).then(resp => resp.ok && resp.json());
-          if (webNotification) {
-            const title = webNotification.title || '';
-            delete webNotification.title;
-            webNotification.icon = webNotification.icon || webNotification.image || self.location.origin + '/pwa/rest/manifest/smallIcon?sizes=72x72';
-            webNotification.data = {
-              notificationId,
-              url: self.location.origin + (webNotification.url || '/'),
-            };
-            delete webNotification.url;
-            if (!webNotification.tag) {
-              delete webNotification.tag;
-              delete webNotification.renotify;
+    const params = data.split(':');
+    const notificationType = params[0];
+    if(notificationType === 'WEB_NOTIFICATION') {
+      const action = params[2]
+      event.waitUntil(new Promise(async (resolve, reject) => {
+        try {
+          if (action === 'open') {
+            const notificationId = params[1]
+            const webNotification = await fetch(`/pwa/rest/notifications/${notificationId}`, {
+              method: 'GET',
+              credentials: 'include',
+            }).then(resp => resp.ok && resp.json());
+            if (webNotification) {
+              const title = webNotification.title || '';
+              prepareNotificationToSend(notificationId, webNotification)
+              await self.registration.showNotification(title, webNotification);
+              await refreshBadge();
             }
-            if (!webNotification.image) {
-              delete webNotification.image;
-            }
-            if (!webNotification.lang) {
-              delete webNotification.lang;
-            }
-            if (!webNotification.dir) {
-              delete webNotification.dir;
-            }
-            if (!webNotification.body) {
-              delete webNotification.body;
-            }
-            if (!webNotification.vibrate) {
-              delete webNotification.vibrate;
-            }
-            if (!webNotification.badge) {
-              delete webNotification.badge;
-            }
-            if (!Notification.maxActions || !webNotification.actions) {
-              delete webNotification.actions;
-            } else if (webNotification.actions.length > Notification.maxActions) {
-              webNotification.actions = webNotification.actions.slice(0, Notification.maxActions);
-            }
-            await self.registration.showNotification(title, webNotification);
-            await refreshBadge();
           }
+          resolve();
+        } catch (e) {
+          reject(e);
         }
-        resolve();
-      } catch (e) {
-        reject(e);
-      }
-    }));
+      }));
+    }
   }
 });
 
@@ -307,6 +278,44 @@ async function refreshBadge() {
       await navigator?.clearAppBadge?.();
     }
   }
+}
+
+function prepareNotificationToSend(notificationId, webNotification) {
+  delete webNotification.title;
+  webNotification.icon = webNotification.icon || webNotification.image || self.location.origin + '/pwa/rest/manifest/smallIcon?sizes=72x72';
+  webNotification.data = {
+    notificationId,
+    url: self.location.origin + (webNotification.url || '/'),
+  };
+  delete webNotification.url;
+  if (!webNotification.tag) {
+    delete webNotification.tag;
+    delete webNotification.renotify;
+  }
+  if (!webNotification.image) {
+    delete webNotification.image;
+  }
+  if (!webNotification.lang) {
+    delete webNotification.lang;
+  }
+  if (!webNotification.dir) {
+    delete webNotification.dir;
+  }
+  if (!webNotification.body) {
+    delete webNotification.body;
+  }
+  if (!webNotification.vibrate) {
+    delete webNotification.vibrate;
+  }
+  if (!webNotification.badge) {
+    delete webNotification.badge;
+  }
+  if (!Notification.maxActions || !webNotification.actions) {
+    delete webNotification.actions;
+  } else if (webNotification.actions.length > Notification.maxActions) {
+    webNotification.actions = webNotification.actions.slice(0, Notification.maxActions);
+  }
+  return webNotification;
 }
 
 @service-worker-extensions@
