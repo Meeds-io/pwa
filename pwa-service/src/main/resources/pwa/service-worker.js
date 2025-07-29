@@ -156,7 +156,7 @@ self.addEventListener('push', event => {
     const data = event?.data?.text?.() || {};
     const params = data.split(':');
     const notificationType = params[0];
-    if(notificationType === 'WEB_NOTIFICATION') {
+    if(!notificationType || notificationType === 'WEB_NOTIFICATION') {
       const action = params[2]
       event.waitUntil(new Promise(async (resolve, reject) => {
         try {
@@ -168,6 +168,7 @@ self.addEventListener('push', event => {
             }).then(resp => resp.ok && resp.json());
             if (webNotification) {
               const title = webNotification.title || '';
+              webNotification.type = 'WEB_NOTIFICATION';
               prepareNotificationToSend(notificationId, webNotification)
               await self.registration.showNotification(title, webNotification);
               await refreshBadge();
@@ -183,13 +184,15 @@ self.addEventListener('push', event => {
 });
 
 self.addEventListener('notificationclick', event => {
-  const url = event.notification.data.url;
+  const notificationType = event?.notification?.data?.type;
   event.waitUntil(new Promise(async (resolve) => {
     event.notification.close();
     const notificationId = event?.notification?.data?.notificationId || event?.notification?.tag;
     try {
       if (event.action) {
-        await updateNotification(notificationId, event.action);
+        if(!notificationType || notificationType === 'WEB_NOTIFICATION') {
+          await updateNotification(notificationId, event.action);
+        }
       } else if (clients && 'openWindow' in clients && 'matchAll' in clients) {
         const windowClients = await clients.matchAll({
           type: 'window',
@@ -233,15 +236,18 @@ self.addEventListener('notificationclick', event => {
 });
 
 self.addEventListener('notificationclose', event => {
-  const notificationId = event?.notification?.data?.notificationId || event?.notification?.tag;
-  if (notificationId) {
-    event.waitUntil(new Promise(async (resolve) => {
-      try {
-        await handleClose(notificationId);
-      } finally {
-        resolve();
-      }
-    }));
+  const notificationType = event?.notification?.data?.type;
+  if(!notificationType || notificationType === 'WEB_NOTIFICATION') {
+    const notificationId = event?.notification?.data?.notificationId || event?.notification?.tag;
+    if (notificationId) {
+      event.waitUntil(new Promise(async (resolve) => {
+        try {
+          await handleClose(notificationId);
+        } finally {
+          resolve();
+        }
+      }));
+    }
   }
 });
 
@@ -286,6 +292,7 @@ function prepareNotificationToSend(notificationId, webNotification) {
   webNotification.data = {
     notificationId,
     url: self.location.origin + (webNotification.url || '/'),
+    type: webNotification.type,
   };
   delete webNotification.url;
   if (!webNotification.tag) {
