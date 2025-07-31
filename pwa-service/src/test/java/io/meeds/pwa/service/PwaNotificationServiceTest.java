@@ -18,8 +18,7 @@
  */
 package io.meeds.pwa.service;
 
-import static io.meeds.pwa.service.PwaNotificationService.PWA_NOTIFICATION_MARK_READ_USER_ACTION;
-import static io.meeds.pwa.service.PwaNotificationService.PWA_NOTIFICATION_OPEN_UI_ACTION;
+import static io.meeds.pwa.service.PwaNotificationService.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -33,7 +32,9 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
 
 import org.apache.http.HttpResponse;
@@ -200,7 +201,7 @@ public class PwaNotificationServiceTest {
     assertNotNull(future);
     assertEquals(0, (int) future.get());
     verify(pwaSubscriptionService, never()).deleteSubscription(SUBSCRIPTION_ID, TEST_USER, false);
-    verify(pushService).send(argThat(n -> (NOTIFICATION_ID + ":" +
+    verify(pushService).send(argThat(n -> ("WEB_NOTIFICATION" + ":" + NOTIFICATION_ID + ":" +
         PWA_NOTIFICATION_OPEN_UI_ACTION).equals(new String(n.getPayload()))));
 
     when(statusLine.getStatusCode()).thenReturn(410);
@@ -214,6 +215,22 @@ public class PwaNotificationServiceTest {
     assertNotNull(future);
     assertEquals(1, (int) future.get());
     verify(pwaSubscriptionService).deleteSubscription(SUBSCRIPTION_ID, TEST_USER, false);
+  }
+
+  @Test
+  public void createWithHashmap() throws Exception { // NOSONAR
+    ScheduledFuture<?> future = pwaNotificationService.create(new HashMap<>());
+    assertNull(future);
+    when(pwaManifestService.isPwaEnabled()).thenReturn(true);
+
+    Map<String, Object> params = new HashMap<>();
+    params.put(EVENT_NOTIFICATION_ID_PARAM_NAME, NOTIFICATION_ID);
+    params.put(EVENT_ACTION_PARAM_NAME, "open");
+    params.put(EVENT_USERNAME_PARAM_NAME, "john");
+    future = pwaNotificationService.create(params);
+    assertNotNull(future);
+    assertEquals(0, (int) future.get());
+    verifyNoInteractions(listenerService);
   }
 
   @SneakyThrows
