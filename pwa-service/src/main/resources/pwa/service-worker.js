@@ -184,6 +184,7 @@ self.addEventListener('push', event => {
 });
 
 self.addEventListener('notificationclick', event => {
+  const url = event.notification.data.url;
   const notificationType = event?.notification?.data?.type;
   event.waitUntil(new Promise(async (resolve) => {
     event.notification.close();
