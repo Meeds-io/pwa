@@ -31,13 +31,12 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.concurrent.BasicThreadFactory;
 import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.exoplatform.commons.api.notification.model.NotificationInfo;
 import org.exoplatform.commons.api.notification.service.WebNotificationService;
@@ -155,8 +154,8 @@ public class PwaNotificationService {
 
   @PostConstruct
   public void init() {
-    ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat("PWA-Push-Notification-%d")
-                                                            .build();
+    ThreadFactory threadFactory = new BasicThreadFactory.Builder().namingPattern("PWA-Push-Notification-%d")
+                                                                  .build();
     executorService = Executors.newScheduledThreadPool(poolSize, threadFactory);
   }
 
