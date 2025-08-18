@@ -39,8 +39,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
 import org.exoplatform.commons.api.notification.model.NotificationInfo;
 import org.exoplatform.commons.api.notification.service.WebNotificationService;
 import org.exoplatform.commons.exception.ObjectNotFoundException;
