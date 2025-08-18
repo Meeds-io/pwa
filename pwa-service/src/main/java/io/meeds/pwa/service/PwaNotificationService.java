@@ -28,11 +28,10 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.ecs.storage.Hash;
+import org.apache.commons.lang3.concurrent.BasicThreadFactory;
 import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -161,7 +160,8 @@ public class PwaNotificationService {
 
   @PostConstruct
   public void init() {
-    ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat("PWA-Push-Notification-%d").build();
+    ThreadFactory threadFactory = new BasicThreadFactory.Builder().namingPattern("PWA-Push-Notification-%d")
+                                                                 .build();
     executorService = Executors.newScheduledThreadPool(poolSize, threadFactory);
   }
 
