@@ -11,6 +11,11 @@
     "sizes": "1024x1024",
     "type": "image/png",
     "purpose": "maskable"
+  },{
+    "src": "$largeIconPath/512.png",
+    "sizes": "512x512",
+    "type": "image/png",
+    "purpose": "maskable"
   }, {
     "src": "$largeIconPath&sizes=192x192",
     "sizes": "192x192",
