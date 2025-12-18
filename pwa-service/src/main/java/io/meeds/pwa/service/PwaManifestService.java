@@ -84,9 +84,9 @@ public class PwaManifestService {
 
   public static final String      DEPRECATED_PUSH_CHANNEL_ID = "PUSH_CHANNEL";
 
-  public static final String      PWA_LARGE_ICON_BASE_PATH   = "/pwa/rest/manifest/largeIcon?v=";               // NOSONAR
+  public static final String      PWA_LARGE_ICON_BASE_PATH   = "/pwa/rest/manifest/largeIcon";               // NOSONAR
 
-  public static final String      PWA_SMALL_ICON_BASE_PATH   = "/pwa/rest/manifest/smallIcon?v=";               // NOSONAR
+  public static final String      PWA_SMALL_ICON_BASE_PATH   = "/pwa/rest/manifest/smallIcon";               // NOSONAR
 
   public static final String      FILE_API_NAME_SPACE        = "CompanyBranding";
 
@@ -311,12 +311,12 @@ public class PwaManifestService {
 
   public String getLargeIconPath() {
     ManifestIcon manifestIcon = getLargeIcon();
-    return manifestIcon == null ? null : PWA_LARGE_ICON_BASE_PATH + Objects.hash(manifestIcon.getUpdatedDate());
+    return manifestIcon == null ? null : PWA_LARGE_ICON_BASE_PATH;
   }
 
   public String getSmallIconPath() {
     ManifestIcon manifestIcon = getSmallIcon();
-    return manifestIcon == null ? null : PWA_SMALL_ICON_BASE_PATH + Objects.hash(manifestIcon.getUpdatedDate());
+    return manifestIcon == null ? null : PWA_SMALL_ICON_BASE_PATH;
   }
 
   public void refreshManifest() {
