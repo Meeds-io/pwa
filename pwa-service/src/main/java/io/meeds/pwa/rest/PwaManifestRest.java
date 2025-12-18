@@ -31,6 +31,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.annotation.Secured;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -49,6 +50,9 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+
+import javax.ws.rs.PathParam;
+import javax.ws.rs.QueryParam;
 
 @RestController
 @RequestMapping("manifest")
@@ -94,25 +98,24 @@ public class PwaManifestRest {
     pwaManifestService.updateManifest(manifestUpdate, request.getRemoteUser());
   }
 
-  @GetMapping("/largeIcon")
+  @GetMapping("/largeIcon/{size}.png")
   @Operation(summary = "Get PWA Manifest large icon file", description = "Get PWA Manifest large icon file", method = "GET")
   @ApiResponses(value = {
                           @ApiResponse(responseCode = "200", description = "Icon file retrieved"),
                           @ApiResponse(responseCode = "304", description = "Icon file not modified"),
   })
-  public ResponseEntity<InputStreamResource> getManifestLargeIcon(
-                                                                  WebRequest request,
-                                                                  @Parameter(description = "Dimensions of size")
-                                                                  @RequestParam(name = "sizes", required = false)
-                                                                  String sizes) {
-    InputStream inputStream = getBrandingFileResponse(request, pwaManifestService.getLargeIcon(sizes));
+  public ResponseEntity<InputStreamResource> getManifestLargeIcon(WebRequest request,
+                                                                  @Parameter(description = "Dimensions of size", required = true)
+                                                                  @PathVariable("size") String size) {
+    String realSize= size+"x"+size;
+    InputStream inputStream = getBrandingFileResponse(request, pwaManifestService.getLargeIcon(realSize));
     return inputStream == null ? null :
                                ResponseEntity.ok()
                                              .contentType(MediaType.IMAGE_PNG)
                                              .body(new InputStreamResource(inputStream));
   }
 
-  @GetMapping("/smallIcon")
+  @GetMapping("/smallIcon/{size}.png")
   @Operation(summary = "Get PWA Manifest small icon file", description = "Get PWA Manifest small icon file", method = "GET")
   @ApiResponses(value = {
                           @ApiResponse(responseCode = "200", description = "Icon file retrieved"),
@@ -120,10 +123,11 @@ public class PwaManifestRest {
   })
   public ResponseEntity<InputStreamResource> getManifestSmallIcon(
                                                                   WebRequest request,
-                                                                  @Parameter(description = "Dimensions of size")
-                                                                  @RequestParam(name = "sizes", required = false)
-                                                                  String sizes) {
-    InputStream inputStream = getBrandingFileResponse(request, pwaManifestService.getSmallIcon(sizes));
+                                                                  @Parameter(description = "Dimensions of size", required = true)
+                                                                  @PathVariable("size")
+                                                                  String size) {
+    String realSize= size+"x"+size;
+    InputStream inputStream = getBrandingFileResponse(request, pwaManifestService.getSmallIcon(realSize));
     return inputStream == null ? null :
                                ResponseEntity.ok()
                                              .contentType(MediaType.IMAGE_PNG)
