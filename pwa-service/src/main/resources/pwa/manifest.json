@@ -7,21 +7,21 @@
   "description": "$description",
   "shortcuts": $shortcuts,
   "icons": [{
-    "src": "$largeIconPath&sizes=1024x1024",
+    "src": "$largeIconPath/1024.png",
     "sizes": "1024x1024",
     "type": "image/png",
     "purpose": "maskable"
   }, {
-    "src": "$largeIconPath&sizes=192x192",
+    "src": "$largeIconPath/192.png",
     "sizes": "192x192",
     "type": "image/png",
     "purpose": "any"
   }, {
-    "src": "$smallIconPath&sizes=144x144",
+    "src": "$smallIconPath/144.png",
     "sizes": "144x144",
     "type": "image/png"
   }, {
-    "src": "$smallIconPath&sizes=72x72",
+    "src": "$smallIconPath/72.png",
     "sizes": "72x72",
     "type": "image/png"
   }],
