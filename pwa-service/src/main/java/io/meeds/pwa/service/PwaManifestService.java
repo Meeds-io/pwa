@@ -311,12 +311,12 @@ public class PwaManifestService {
 
   public String getLargeIconPath() {
     ManifestIcon manifestIcon = getLargeIcon();
-    return manifestIcon == null ? null : PWA_LARGE_ICON_BASE_PATH;
+    return manifestIcon == null ? null : PWA_LARGE_ICON_BASE_PATH + "/" + Objects.hash(manifestIcon.getUpdatedDate());
   }
 
   public String getSmallIconPath() {
     ManifestIcon manifestIcon = getSmallIcon();
-    return manifestIcon == null ? null : PWA_SMALL_ICON_BASE_PATH;
+    return manifestIcon == null ? null : PWA_SMALL_ICON_BASE_PATH + "/" + Objects.hash(manifestIcon.getUpdatedDate());
   }
 
   public void refreshManifest() {
