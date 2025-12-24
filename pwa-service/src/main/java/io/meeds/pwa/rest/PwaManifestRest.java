@@ -68,8 +68,7 @@ public class PwaManifestRest {
                           @ApiResponse(responseCode = "200", description = "PWA Manifest retrieved"),
                           @ApiResponse(responseCode = "304", description = "PWA Manifest not modified"),
   })
-  public ResponseEntity<String> getManifest(
-                                            WebRequest request,
+  public ResponseEntity<String> getManifest(WebRequest request,
                                             @Parameter(description = "The value of version parameter will determine whether the query should be cached by browser or not. If not set, no 'expires HTTP Header will be sent'")
                                             @RequestParam(name = "v", required = false)
                                             String version) {
@@ -91,8 +90,7 @@ public class PwaManifestRest {
   @ApiResponses(value = {
                           @ApiResponse(responseCode = "204", description = "Manifest information updated"),
   })
-  public void updateManifest(
-                             WebRequest request,
+  public void updateManifest(WebRequest request,
                              @RequestBody
                              PwaManifestUpdate manifestUpdate) {
     pwaManifestService.updateManifest(manifestUpdate, request.getRemoteUser());
@@ -110,11 +108,7 @@ public class PwaManifestRest {
                                                                   @Parameter(description = "VersionId of the icon", required = true)
                                                                   @PathVariable("version") String version) {
     String realSize= size+"x"+size;
-    InputStream inputStream = getBrandingFileResponse(request, pwaManifestService.getLargeIcon(realSize));
-    return inputStream == null ? null :
-                               ResponseEntity.ok()
-                                             .contentType(MediaType.IMAGE_PNG)
-                                             .body(new InputStreamResource(inputStream));
+    return getManifestLargeIcon(request,realSize);
   }
 
   @GetMapping("/smallIcon/{version}/{size}.png")
@@ -123,19 +117,46 @@ public class PwaManifestRest {
                           @ApiResponse(responseCode = "200", description = "Icon file retrieved"),
                           @ApiResponse(responseCode = "304", description = "Icon file not modified"),
   })
-  public ResponseEntity<InputStreamResource> getManifestSmallIcon(
-                                                                  WebRequest request,
+  public ResponseEntity<InputStreamResource> getManifestSmallIcon(WebRequest request,
                                                                   @Parameter(description = "Dimensions of size", required = true)
                                                                   @PathVariable("size")
                                                                   String size,
                                                                   @Parameter(description = "VersionId of the icon", required = true)
                                                                   @PathVariable("version") String version) {
     String realSize= size+"x"+size;
-    InputStream inputStream = getBrandingFileResponse(request, pwaManifestService.getSmallIcon(realSize));
+    return getManifestSmallIcon(request,realSize);
+  }
+
+  @GetMapping("/largeIcon")
+  @Operation(summary = "Get PWA Manifest large icon file", description = "Get PWA Manifest large icon file", method = "GET")
+  @ApiResponses(value = {
+      @ApiResponse(responseCode = "200", description = "Icon file retrieved"),
+      @ApiResponse(responseCode = "304", description = "Icon file not modified"),
+  })
+  public ResponseEntity<InputStreamResource> getManifestLargeIcon(WebRequest request,
+                                                                  @Parameter(description = "Dimensions of size")
+                                                                  @RequestParam(name = "sizes", required = false) String sizes) {
+    InputStream inputStream = getBrandingFileResponse(request, pwaManifestService.getLargeIcon(sizes));
     return inputStream == null ? null :
-                               ResponseEntity.ok()
-                                             .contentType(MediaType.IMAGE_PNG)
-                                             .body(new InputStreamResource(inputStream));
+           ResponseEntity.ok()
+                         .contentType(MediaType.IMAGE_PNG)
+                         .body(new InputStreamResource(inputStream));
+  }
+
+  @GetMapping("/smallIcon")
+  @Operation(summary = "Get PWA Manifest small icon file", description = "Get PWA Manifest small icon file", method = "GET")
+  @ApiResponses(value = {
+      @ApiResponse(responseCode = "200", description = "Icon file retrieved"),
+      @ApiResponse(responseCode = "304", description = "Icon file not modified"),
+  })
+  public ResponseEntity<InputStreamResource> getManifestSmallIcon(WebRequest request,
+                                                                  @Parameter(description = "Dimensions of size")
+                                                                  @RequestParam(name = "sizes", required = false) String sizes) {
+    InputStream inputStream = getBrandingFileResponse(request, pwaManifestService.getSmallIcon(sizes));
+    return inputStream == null ? null :
+           ResponseEntity.ok()
+                         .contentType(MediaType.IMAGE_PNG)
+                         .body(new InputStreamResource(inputStream));
   }
 
   private InputStream getBrandingFileResponse(WebRequest request,
