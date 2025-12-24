@@ -289,7 +289,7 @@ async function refreshBadge() {
 
 function prepareNotificationToSend(notificationId, webNotification) {
   delete webNotification.title;
-  webNotification.icon = webNotification.icon || webNotification.image || self.location.origin + '/pwa/rest/manifest/smallIcon?sizes=72x72';
+  webNotification.icon = webNotification.icon || webNotification.image || self.location.origin + '/pwa/rest/manifest/smallIcon/72.png';
   webNotification.data = {
     notificationId,
     url: self.location.origin + (webNotification.url || '/'),
