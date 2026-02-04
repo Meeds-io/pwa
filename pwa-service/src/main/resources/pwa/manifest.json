@@ -1,6 +1,6 @@
 {
   "id": "/",
-  "start_url": "/",
+  "start_url": "/pwa/html/pwaLauncher.html",
   "scope": "/",
   "name": "$name",
   "short_name": "$name",
