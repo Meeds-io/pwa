@@ -169,7 +169,7 @@ self.addEventListener('push', event => {
             if (webNotification) {
               const title = webNotification.title || '';
               webNotification.type = 'WEB_NOTIFICATION';
-              prepareNotificationToSend(notificationId, webNotification)
+              prepareNotificationToSend(notificationId, webNotification);
               await self.registration.showNotification(title, webNotification);
               await refreshBadge();
             }
@@ -290,6 +290,8 @@ async function refreshBadge() {
 function prepareNotificationToSend(notificationId, webNotification) {
   delete webNotification.title;
   webNotification.icon = webNotification.icon || webNotification.image || self.location.origin + '/pwa/rest/manifest/smallIcon?sizes=72x72';
+  webNotification.badge = self.location.origin + '/pwa/rest/manifest/monochromeIcon';
+
   webNotification.data = {
     notificationId,
     url: self.location.origin + (webNotification.url || '/'),
@@ -315,9 +317,7 @@ function prepareNotificationToSend(notificationId, webNotification) {
   if (!webNotification.vibrate) {
     delete webNotification.vibrate;
   }
-  if (!webNotification.badge) {
-    delete webNotification.badge;
-  }
+
   if (!Notification.maxActions || !webNotification.actions) {
     delete webNotification.actions;
   } else if (webNotification.actions.length > Notification.maxActions) {
