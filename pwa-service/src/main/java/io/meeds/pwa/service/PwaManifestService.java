@@ -19,6 +19,10 @@
  */
 package io.meeds.pwa.service;
 
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -74,6 +78,8 @@ import io.meeds.social.util.JsonUtils;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.SneakyThrows;
+
+import javax.imageio.ImageIO;
 
 @Service
 public class PwaManifestService {
@@ -550,4 +556,41 @@ public class PwaManifestService {
     }
   }
 
+  public BrandingFile getMonochromeIcon() {
+    BrandingFile monochromeIcon = getSmallIcon();
+    try {
+      monochromeIcon.setData(convertToMonochrome(monochromeIcon.getData()));
+    } catch (Exception e) {
+      LOG.error("Can't convert smallIcon to Monochrome", e);
+    }
+    return monochromeIcon;
+  }
+
+  public byte[] convertToMonochrome(byte[] inputBytes) throws Exception {
+    BufferedImage input;
+    try (ByteArrayInputStream bais = new ByteArrayInputStream(inputBytes)) {
+      input = ImageIO.read(bais);
+    }
+
+    int width = input.getWidth();
+    int height = input.getHeight();
+
+    BufferedImage output = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        int rgba = input.getRGB(x, y);
+        Color color = new Color(rgba, true);
+        int alpha = color.getAlpha();
+        if (alpha < 50) {
+          output.setRGB(x, y, 0x00000000);
+          continue;
+        }
+        output.setRGB(x, y, new Color(255, 255, 255, alpha).getRGB());
+      }
+    }
+    try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+      ImageIO.write(output, "png", baos);
+      return baos.toByteArray();
+    }
+  }
 }

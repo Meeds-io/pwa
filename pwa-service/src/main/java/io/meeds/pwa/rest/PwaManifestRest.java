@@ -143,6 +143,20 @@ public class PwaManifestRest {
                          .body(new InputStreamResource(inputStream));
   }
 
+  @GetMapping("/monochromeIcon")
+  @Operation(summary = "Get PWA Manifest monochrome icon file", description = "Get PWA Manifest monochrome icon file", method = "GET")
+  @ApiResponses(value = {
+      @ApiResponse(responseCode = "200", description = "Icon file retrieved"),
+      @ApiResponse(responseCode = "304", description = "Icon file not modified"),
+  })
+  public ResponseEntity<InputStreamResource> getMonochromeIcon(WebRequest request) {
+    InputStream inputStream = getBrandingFileResponse(request, pwaManifestService.getMonochromeIcon());
+    return inputStream == null ? null :
+           ResponseEntity.ok()
+                         .contentType(MediaType.IMAGE_PNG)
+                         .body(new InputStreamResource(inputStream));
+  }
+
   @GetMapping("/smallIcon")
   @Operation(summary = "Get PWA Manifest small icon file", description = "Get PWA Manifest small icon file", method = "GET")
   @ApiResponses(value = {
