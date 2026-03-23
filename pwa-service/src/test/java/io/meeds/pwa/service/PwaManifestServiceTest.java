@@ -37,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doAnswer;
@@ -45,6 +46,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.util.Collections;
 import java.util.Date;
 import java.util.Locale;
@@ -57,6 +60,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.repository.init.ResourceReader;
 import org.springframework.test.context.TestPropertySource;
 
 import org.exoplatform.commons.api.notification.channel.AbstractChannel;
@@ -289,6 +293,94 @@ public class PwaManifestServiceTest {
     ManifestIcon smallIcon = pwaManifestService.getSmallIcon();
     assertNotNull(smallIcon);
     assertEquals(smallIconFileItem.getAsByte().length, smallIcon.getData().length);
+  }
+
+  @Test
+  public void getMonochromeIcon() throws Exception {
+
+    mockSettingsService();
+    mockFeatureService();
+    mockManifestFileContent();
+    mockBrandingAttributes();
+    mockIconFiles();
+
+    pwaManifestService.init();
+
+
+    PwaManifestUpdate manifestUpdate = new PwaManifestUpdate();
+    manifestUpdate.setEnabled(true);
+    manifestUpdate.setName("Name2");
+    manifestUpdate.setDescription("Description2");
+    manifestUpdate.setLargeIconUploadId("largeIconUploadId");
+    manifestUpdate.setSmallIconUploadId("smallIconUploadId");
+
+    manifestUpdate.setThemeColor("themeColor2");
+    manifestUpdate.setBackgroundColor("eval");
+
+    assertThrows(IllegalArgumentException.class, () -> pwaManifestService.updateManifest(manifestUpdate, TEST_USER));
+
+    manifestUpdate.setThemeColor("eval");
+    manifestUpdate.setBackgroundColor("backgroundColor2");
+    assertThrows(IllegalArgumentException.class, () -> pwaManifestService.updateManifest(manifestUpdate, TEST_USER));
+
+    manifestUpdate.setThemeColor("themeColor2");
+    manifestUpdate.setBackgroundColor("backgroundColor2");
+    assertThrows(IllegalArgumentException.class, () -> pwaManifestService.updateManifest(manifestUpdate, TEST_USER));
+
+    when(fileService.writeFile(any())).thenAnswer(invocation -> {
+      FileItem fileItem = invocation.getArgument(0);
+      FileInfo fileInfo = mock(FileInfo.class);
+      fileItem.setFileInfo(fileInfo);
+      when(fileInfo.getId()).thenReturn(RANDOM.nextLong());
+      return fileItem;
+    });
+
+
+    UploadResource largeIconUploadResource = mock(UploadResource.class);
+    when(uploadService.getUploadResource(manifestUpdate.getLargeIconUploadId())).thenReturn(largeIconUploadResource);
+    when(largeIconUploadResource.getStoreLocation()).thenReturn(getClass().getClassLoader()
+                                                                          .getResource("test_icon.png")
+                                                                          .getPath());
+    UploadResource smallIconUploadResource = mock(UploadResource.class);
+    when(uploadService.getUploadResource(manifestUpdate.getSmallIconUploadId())).thenReturn(smallIconUploadResource);
+    when(smallIconUploadResource.getStoreLocation()).thenReturn(getClass().getClassLoader()
+                                                                          .getResource("test_icon.png")
+                                                                          .getPath());
+
+
+    InputStream is = ResourceReader.class
+        .getClassLoader()
+        .getResourceAsStream("test_icon.png");
+
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+
+    if (is == null) {
+      throw new IllegalArgumentException("Ressource unavailable");
+    }
+
+    byte[] buffer = new byte[4096];
+    int bytesRead;
+
+    while ((bytesRead = is.read(buffer)) != -1) {
+      baos.write(buffer, 0, bytesRead);
+    }
+
+    byte[] data = baos.toByteArray();
+
+
+    FileInfo fileInfo = mock(FileInfo.class);
+    when(fileInfo.getUpdatedDate()).thenReturn(new Date(System.currentTimeMillis()));
+    when(fileInfo.getSize()).thenReturn(Long.valueOf(data.length));
+    FileItem monoChromeIconFileItem = new FileItem(fileInfo, new ByteArrayInputStream(data));
+    when(fileService.getFile(anyLong())).thenReturn(monoChromeIconFileItem);
+
+
+    pwaManifestService.updateManifest(manifestUpdate, TEST_USER);
+
+    pwaManifestService.init();
+
+    ManifestIcon monochromeIcon = pwaManifestService.getMonochromeIcon();
+    assertNotNull(monochromeIcon);
   }
 
   @Test
