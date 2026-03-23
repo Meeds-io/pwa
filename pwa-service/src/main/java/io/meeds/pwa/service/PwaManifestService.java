@@ -255,6 +255,7 @@ public class PwaManifestService {
       this.pwaManifest.setContent(null);
       this.largeIcon = null;
       this.smallIcon = null;
+      this.monochromeIcon = null;
       this.getManifestContent(username);
     }
   }
