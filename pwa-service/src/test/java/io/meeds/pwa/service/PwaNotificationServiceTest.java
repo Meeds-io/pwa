@@ -18,7 +18,11 @@
  */
 package io.meeds.pwa.service;
 
-import static io.meeds.pwa.service.PwaNotificationService.*;
+import static io.meeds.pwa.service.PwaNotificationService.EVENT_ACTION_PARAM_NAME;
+import static io.meeds.pwa.service.PwaNotificationService.EVENT_NOTIFICATION_ID_PARAM_NAME;
+import static io.meeds.pwa.service.PwaNotificationService.EVENT_USERNAME_PARAM_NAME;
+import static io.meeds.pwa.service.PwaNotificationService.PWA_NOTIFICATION_MARK_READ_USER_ACTION;
+import static io.meeds.pwa.service.PwaNotificationService.PWA_NOTIFICATION_OPEN_UI_ACTION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -40,10 +44,9 @@ import java.util.concurrent.ScheduledFuture;
 import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import org.exoplatform.commons.api.notification.model.NotificationInfo;
 import org.exoplatform.commons.api.notification.model.PluginKey;
@@ -82,58 +85,58 @@ public class PwaNotificationServiceTest {
 
   private static final String          TEST_USER             = "testUser";
 
-  @MockBean
+  @MockitoBean
   private PwaManifestService           pwaManifestService;
 
-  @MockBean
+  @MockitoBean
   private PwaSubscriptionService       pwaSubscriptionService;
 
-  @MockBean
+  @MockitoBean
   private PwaNotificationStorage       pwaNotificationStorage;
 
-  @MockBean
+  @MockitoBean
   private WebNotificationService       webNotificationService;
 
-  @MockBean
+  @MockitoBean
   private ListenerService              listenerService;
 
-  @MockBean
+  @MockitoBean
   private OrganizationService          organizationService;
 
-  @MockBean
+  @MockitoBean
   private LocaleConfigService          localeConfigService;
 
-  @MockBean
+  @MockitoBean
   private ResourceBundleService        resourceBundleService;
 
-  @MockBean
+  @MockitoBean
   private DefaultPwaNotificationPlugin defaultPwaNotificationPlugin;
 
-  @MockBean
+  @MockitoBean
   private PushService                  pushService;
 
   @Autowired
   private PwaNotificationService       pwaNotificationService;
 
-  @Mock
+  @MockitoBean
   private NotificationInfo             notification;
 
-  @Mock
+  @MockitoBean
   private UserProfile                  userProfile;
 
-  @Mock
+  @MockitoBean
   private UserProfileHandler           userProfileHandler;
 
-  @Mock
+  @MockitoBean
   private PwaNotificationMessage       notificationMessage;
 
-  @Mock
+  @MockitoBean
   private UserPushSubscription         userPushSubscription;
 
-  @Mock
+  @MockitoBean
   private HttpResponse                 httpResponse;
 
-  @Mock
+  @MockitoBean
   private StatusLine                   statusLine;
 
   @Test

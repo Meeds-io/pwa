@@ -59,7 +59,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.data.repository.init.ResourceReader;
 import org.springframework.test.context.TestPropertySource;
 
@@ -130,37 +130,37 @@ public class PwaManifestServiceTest {
 
   private static final String   PWA_MANIFEST_PATH        = "pwaManifestPath";
 
-  @MockBean
+  @MockitoBean
   private SettingService        settingService;
 
-  @MockBean
+  @MockitoBean
   private FileService           fileService;
 
-  @MockBean
+  @MockitoBean
   private UploadService         uploadService;
 
-  @MockBean
+  @MockitoBean
   private BrandingService       brandingService;
 
-  @MockBean
+  @MockitoBean
   private ConfigurationManager  configurationManager;
 
-  @MockBean
+  @MockitoBean
   private ExoFeatureService     featureService;
 
-  @MockBean
+  @MockitoBean
   private ResourceBundleService resourceBundleService;
 
-  @MockBean
+  @MockitoBean
   private ImageThumbnailService imageThumbnailService;
 
-  @MockBean
+  @MockitoBean
   private ImageResizeService    imageResizeService;
 
-  @MockBean
+  @MockitoBean
   private ChannelManager        channelManager;
 
-  @MockBean
+  @MockitoBean
   private ListenerService       listenerService;
 
   @Autowired

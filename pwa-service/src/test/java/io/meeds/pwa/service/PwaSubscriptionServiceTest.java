@@ -29,10 +29,9 @@ import java.util.Collections;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
-import org.mockito.Mock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import org.exoplatform.services.listener.ListenerService;
 
@@ -50,16 +49,16 @@ public class PwaSubscriptionServiceTest {
 
   private static final String    TEST_USER             = "testUser";
 
-  @MockBean
+  @MockitoBean
   private PwaSubscriptionStorage pwaSubscriptionStorage;
 
-  @MockBean
+  @MockitoBean
   private ListenerService        listenerService;
 
   @Autowired
   private PwaSubscriptionService pwaSubscriptionService;
 
-  @Mock
+  @MockitoBean
   private UserPushSubscription   userPushSubscription;
 
   @Test
