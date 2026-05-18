@@ -43,7 +43,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import org.exoplatform.commons.api.notification.model.NotificationInfo;
 import org.exoplatform.commons.api.notification.model.PluginKey;
@@ -82,34 +82,34 @@ public class PwaNotificationServiceTest {
 
   private static final String          TEST_USER             = "testUser";
 
-  @MockBean
+  @MockitoBean
   private PwaManifestService           pwaManifestService;
 
-  @MockBean
+  @MockitoBean
   private PwaSubscriptionService       pwaSubscriptionService;
 
-  @MockBean
+  @MockitoBean
   private PwaNotificationStorage       pwaNotificationStorage;
 
-  @MockBean
+  @MockitoBean
   private WebNotificationService       webNotificationService;
 
-  @MockBean
+  @MockitoBean
   private ListenerService              listenerService;
 
-  @MockBean
+  @MockitoBean
   private OrganizationService          organizationService;
 
-  @MockBean
+  @MockitoBean
   private LocaleConfigService          localeConfigService;
 
-  @MockBean
+  @MockitoBean
   private ResourceBundleService        resourceBundleService;
 
-  @MockBean
+  @MockitoBean
   private DefaultPwaNotificationPlugin defaultPwaNotificationPlugin;
 
-  @MockBean
+  @MockitoBean
   private PushService                  pushService;
 
   @Autowired

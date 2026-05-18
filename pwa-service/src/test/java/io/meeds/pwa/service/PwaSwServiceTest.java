@@ -25,7 +25,7 @@ import static org.mockito.Mockito.when;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.TestPropertySource;
 
 import org.exoplatform.container.PortalContainer;
@@ -39,10 +39,10 @@ import org.exoplatform.container.configuration.ConfigurationManager;
                     })
 public class PwaSwServiceTest {
 
-  @MockBean
+  @MockitoBean
   private PortalContainer      container;
 
-  @MockBean
+  @MockitoBean
   private ConfigurationManager configurationManager;
 
   @Autowired
