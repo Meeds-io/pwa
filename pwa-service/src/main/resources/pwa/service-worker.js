@@ -230,29 +230,17 @@ self.addEventListener('notificationclick', event => {
     } catch(e) {
       console.error(e);
     } finally {
-      await handleClose(notificationId);
+      await markAsRead(notificationId);
       resolve();
     }
   }));
 });
 
 self.addEventListener('notificationclose', event => {
-  const notificationType = event?.notification?.data?.type;
-  if(!notificationType || notificationType === 'WEB_NOTIFICATION') {
-    const notificationId = event?.notification?.data?.notificationId || event?.notification?.tag;
-    if (notificationId) {
-      event.waitUntil(new Promise(async (resolve) => {
-        try {
-          await handleClose(notificationId);
-        } finally {
-          resolve();
-        }
-      }));
-    }
-  }
+  event.waitUntil(refreshBadge);
 });
 
-async function handleClose(notificationId) {
+async function markAsRead(notificationId) {
   try {
     await updateNotification(notificationId, 'markRead');
   } catch(e) {
