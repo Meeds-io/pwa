@@ -35,6 +35,11 @@ const offlineAssets = [
   `/pwa/i18n/locale.portlet.OfflineApplication`,
 ];
 
+const pushDeviceDbName = 'pwa-push-device';
+const pushDeviceStoreName = 'secrets';
+const pushDeviceSecretKeyPrefix = 'push-device-secret-';
+const pushAuthScheme = 'PWA-Notification';
+
 const checkCache = async () => {
   const version = await getCacheVersion();
   if (version !== getCacheVersionValue()) {
@@ -141,8 +146,10 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('activate', event => {
-  event.waitUntil(clients.claim());
-  activateNavigationPreload();
+  event.waitUntil(Promise.all([
+    clients.claim(),
+    activateNavigationPreload(),
+  ]));
 });
 
 if (offlineModeEnabled) {
@@ -151,28 +158,36 @@ if (offlineModeEnabled) {
   });
 }
 
+self.addEventListener('message', event => {
+  if (event?.data?.action === 'set-push-device-secret'
+      && event.data.subscriptionId
+      && event.data.pushDeviceSecret) {
+    event.waitUntil(setPushDeviceSecret(event.data.subscriptionId, event.data.pushDeviceSecret));
+  }
+});
+
 self.addEventListener('push', event => {
   if (self?.Notification?.permission === 'granted') {
     const data = event?.data?.text?.() || {};
     const params = data.split(':');
     const notificationType = params[0];
     if(!notificationType || notificationType === 'WEB_NOTIFICATION') {
-      const action = params[2]
+      const action = params[2];
       event.waitUntil(new Promise(async (resolve, reject) => {
         try {
           if (action === 'open') {
-            const notificationId = params[1]
-            const webNotification = await fetch(`/pwa/rest/notifications/${notificationId}`, {
-              method: 'GET',
-              credentials: 'include',
-            }).then(resp => resp.ok && resp.json());
-            if (webNotification) {
-              const title = webNotification.title || '';
-              webNotification.type = 'WEB_NOTIFICATION';
-              prepareNotificationToSend(notificationId, webNotification);
-              await self.registration.showNotification(title, webNotification);
-              await refreshBadge();
+            const notificationId = params[1];
+            const notificationAccessToken = params[3];
+            const subscriptionId = params[4];
+            let webNotification = await getWebNotification(notificationId, notificationAccessToken, subscriptionId);
+            if (!webNotification) {
+              webNotification = getFallbackNotification(notificationId);
             }
+            const title = webNotification.title || getFallbackNotificationTitle();
+            webNotification.type = 'WEB_NOTIFICATION';
+            prepareNotificationToSend(notificationId, webNotification, notificationAccessToken, subscriptionId);
+            await self.registration.showNotification(title, webNotification);
+            await refreshBadge();
           }
           resolve();
         } catch (e) {
@@ -189,10 +204,12 @@ self.addEventListener('notificationclick', event => {
   event.waitUntil(new Promise(async (resolve) => {
     event.notification.close();
     const notificationId = event?.notification?.data?.notificationId || event?.notification?.tag;
+    const notificationAccessToken = event?.notification?.data?.accessToken;
+    const subscriptionId = event?.notification?.data?.subscriptionId;
     try {
       if (event.action) {
         if(!notificationType || notificationType === 'WEB_NOTIFICATION') {
-          await updateNotification(notificationId, event.action);
+          await updateNotification(notificationId, event.action, notificationAccessToken, subscriptionId);
         }
       } else if (clients && 'openWindow' in clients && 'matchAll' in clients) {
         const windowClients = await clients.matchAll({
@@ -230,7 +247,7 @@ self.addEventListener('notificationclick', event => {
     } catch(e) {
       console.error(e);
     } finally {
-      await markAsRead(notificationId);
+      await markAsRead(notificationId, notificationAccessToken, subscriptionId);
       resolve();
     }
   }));
@@ -240,9 +257,9 @@ self.addEventListener('notificationclose', event => {
   event.waitUntil(refreshBadge);
 });
 
-async function markAsRead(notificationId) {
+async function markAsRead(notificationId, notificationAccessToken, subscriptionId) {
   try {
-    await updateNotification(notificationId, 'markRead');
+    await updateNotification(notificationId, 'markRead', notificationAccessToken, subscriptionId);
   } catch(e) {
     console.error(e);
   }
@@ -253,7 +270,22 @@ async function markAsRead(notificationId) {
   }
 }
 
-async function updateNotification(notificationId, action) {
+async function updateNotification(notificationId, action, notificationAccessToken, subscriptionId) {
+  const authorizationHeader = await getPushAuthorizationHeader(notificationId, notificationAccessToken, subscriptionId);
+  if (authorizationHeader) {
+    const response = await fetch(`/pwa/rest/notifications/${notificationId}/push`, {
+      method: 'PATCH',
+      credentials: 'omit',
+      headers: {
+        'Authorization': authorizationHeader,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: `action=${action}`
+    });
+    if (response.ok) {
+      return;
+    }
+  }
   await fetch(`/pwa/rest/notifications/${notificationId}`, {
     method: 'PATCH',
     credentials: 'include',
@@ -261,6 +293,108 @@ async function updateNotification(notificationId, action) {
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: `action=${action}`
+  });
+}
+
+async function getWebNotification(notificationId, notificationAccessToken, subscriptionId) {
+  const authorizationHeader = await getPushAuthorizationHeader(notificationId, notificationAccessToken, subscriptionId);
+  if (authorizationHeader) {
+    const response = await fetch(`/pwa/rest/notifications/${notificationId}/push`, {
+      method: 'GET',
+      credentials: 'omit',
+      headers: {
+        'Authorization': authorizationHeader,
+      },
+    });
+    if (response.ok) {
+      return response.json();
+    }
+  }
+  return fetch(`/pwa/rest/notifications/${notificationId}`, {
+    method: 'GET',
+    credentials: 'include',
+  }).then(resp => resp.ok && resp.json());
+}
+
+async function getPushAuthorizationHeader(notificationId, notificationAccessToken, subscriptionId) {
+  if (!notificationAccessToken || !subscriptionId) {
+    return null;
+  }
+  const deviceSecret = await getPushDeviceSecret(subscriptionId);
+  if (!deviceSecret) {
+    return null;
+  }
+  const timestamp = Date.now().toString();
+  const proof = await hmac(deviceSecret, `${notificationId}:${notificationAccessToken}:${subscriptionId}:${timestamp}`);
+  return `${pushAuthScheme} token=${notificationAccessToken},subscriptionId=${subscriptionId},timestamp=${timestamp},proof=${proof}`;
+}
+
+async function hmac(secret, payload) {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    base64ToBytes(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payload));
+  return base64UrlEncode(new Uint8Array(signature));
+}
+
+function base64UrlEncode(bytes) {
+  let value = '';
+  bytes.forEach(byte => value += String.fromCharCode(byte));
+  return btoa(value)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+function base64ToBytes(value) {
+  return Uint8Array.from(atob(value), c => c.charCodeAt(0));
+}
+
+async function getPushDeviceSecret(subscriptionId) {
+  return getPushDeviceStoreValue(`${pushDeviceSecretKeyPrefix}${subscriptionId}`);
+}
+
+async function setPushDeviceSecret(subscriptionId, secret) {
+  return setPushDeviceStoreValue(`${pushDeviceSecretKeyPrefix}${subscriptionId}`, secret);
+}
+
+async function openPushDeviceStore() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(pushDeviceDbName, 1);
+    request.onupgradeneeded = () => request.result.createObjectStore(pushDeviceStoreName);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function getPushDeviceStoreValue(key) {
+  const db = await openPushDeviceStore();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(pushDeviceStoreName, 'readonly');
+    const request = transaction.objectStore(pushDeviceStoreName).get(key);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+    transaction.oncomplete = () => db.close();
+  });
+}
+
+async function setPushDeviceStoreValue(key, value) {
+  const db = await openPushDeviceStore();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(pushDeviceStoreName, 'readwrite');
+    transaction.objectStore(pushDeviceStoreName).put(value, key);
+    transaction.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error);
+    };
   });
 }
 
@@ -275,7 +409,22 @@ async function refreshBadge() {
   }
 }
 
-function prepareNotificationToSend(notificationId, webNotification) {
+function getFallbackNotification(notificationId) {
+  return {
+    title: getFallbackNotificationTitle(),
+    body: 'Open the app to view this notification.',
+    url: '/',
+    tag: notificationId,
+    requireInteraction: true,
+    renotify: true,
+  };
+}
+
+function getFallbackNotificationTitle() {
+  return 'New notification';
+}
+
+function prepareNotificationToSend(notificationId, webNotification, notificationAccessToken, subscriptionId) {
   delete webNotification.title;
   webNotification.icon = webNotification.icon || webNotification.image || self.location.origin + '/pwa/rest/manifest/smallIcon?sizes=72x72';
   webNotification.badge = self.location.origin + '/pwa/rest/manifest/monochromeIcon';
@@ -284,6 +433,8 @@ function prepareNotificationToSend(notificationId, webNotification) {
     notificationId,
     url: self.location.origin + (webNotification.url || '/'),
     type: webNotification.type,
+    accessToken: notificationAccessToken,
+    subscriptionId,
   };
   delete webNotification.url;
   if (!webNotification.tag) {

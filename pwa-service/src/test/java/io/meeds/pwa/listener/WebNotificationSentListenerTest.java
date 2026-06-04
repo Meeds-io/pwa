@@ -18,9 +18,6 @@
  */
 package io.meeds.pwa.listener;
 
-import static org.exoplatform.commons.api.notification.service.storage.WebNotificationStorage.NOTIFICATION_WEB_DELETED_EVENT;
-import static org.exoplatform.commons.api.notification.service.storage.WebNotificationStorage.NOTIFICATION_WEB_READ_ALL_EVENT;
-import static org.exoplatform.commons.api.notification.service.storage.WebNotificationStorage.NOTIFICATION_WEB_READ_EVENT;
 import static org.exoplatform.commons.api.notification.service.storage.WebNotificationStorage.NOTIFICATION_WEB_SAVED_EVENT;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -35,7 +32,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import org.exoplatform.services.listener.Event;
 import org.exoplatform.services.listener.ListenerService;
@@ -43,17 +40,17 @@ import org.exoplatform.services.listener.ListenerService;
 import io.meeds.pwa.service.PwaNotificationService;
 
 @SpringBootTest(classes = {
-                            WebNotificationSentListener.class,
+  WebNotificationSentListener.class,
 })
 @ExtendWith(MockitoExtension.class)
 public class WebNotificationSentListenerTest {
 
   private static final String         NOTIFICATION_ID = "5";
 
-  @MockBean
+  @MockitoBean
   private PwaNotificationService      pwaNotificationService;
 
-  @MockBean
+  @MockitoBean
   private ListenerService             listenerService;
 
   @Autowired

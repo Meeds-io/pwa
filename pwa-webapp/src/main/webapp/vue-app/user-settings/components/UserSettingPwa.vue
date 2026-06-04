@@ -164,7 +164,6 @@ export default {
     });
     document.addEventListener('pwa-beforeinstallprompt', this.checkInstalled);
     this.pwaSupported = 'onbeforeinstallprompt' in window;
-    console.warn('this.pwaSupported', this.pwaSupported);
     this.checkInstalled();
   },
   mounted() {

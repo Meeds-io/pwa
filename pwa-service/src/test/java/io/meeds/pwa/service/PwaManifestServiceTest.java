@@ -59,9 +59,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.repository.init.ResourceReader;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import org.exoplatform.commons.api.notification.channel.AbstractChannel;
 import org.exoplatform.commons.api.notification.channel.ChannelManager;
@@ -92,17 +92,22 @@ import io.meeds.pwa.model.PwaManifest;
 import io.meeds.pwa.model.PwaManifestUpdate;
 
 @SpringBootTest(classes = {
-                            PwaManifestService.class,
+  PwaManifestService.class,
 })
-@TestPropertySource(
-                    properties = {
-                                   "pwa.manifest.id=manifestId",
-                                   "pwa.manifest.version=V4",
-                                   "pwa.manifest.description=manifestDescriptionKey",
-                                   "pwa.manifest.path=pwaManifestPath",
-                    })
+@TestPropertySource(properties = {
+  "pwa.manifest.id=manifestId",
+  "pwa.manifest.version=V4",
+  "pwa.manifest.description=manifestDescriptionKey",
+  "pwa.manifest.path=pwaManifestPath",
+})
 @ExtendWith(MockitoExtension.class)
 public class PwaManifestServiceTest {
+
+  private static final String   TEST_ICON_PNG            = "test_icon.png";
+
+  private static final String   THEME_COLOR_OTHER        = "themeColor2";
+
+  private static final String   BACKGROUND_COLOR_OTHER   = "backgroundColor2";
 
   private static final Random   RANDOM                   = new Random();
 
@@ -130,37 +135,37 @@ public class PwaManifestServiceTest {
 
   private static final String   PWA_MANIFEST_PATH        = "pwaManifestPath";
 
-  @MockBean
+  @MockitoBean
   private SettingService        settingService;
 
-  @MockBean
+  @MockitoBean
   private FileService           fileService;
 
-  @MockBean
+  @MockitoBean
   private UploadService         uploadService;
 
-  @MockBean
+  @MockitoBean
   private BrandingService       brandingService;
 
-  @MockBean
+  @MockitoBean
   private ConfigurationManager  configurationManager;
 
-  @MockBean
+  @MockitoBean
   private ExoFeatureService     featureService;
 
-  @MockBean
+  @MockitoBean
   private ResourceBundleService resourceBundleService;
 
-  @MockBean
+  @MockitoBean
   private ImageThumbnailService imageThumbnailService;
 
-  @MockBean
+  @MockitoBean
   private ImageResizeService    imageResizeService;
 
-  @MockBean
+  @MockitoBean
   private ChannelManager        channelManager;
 
-  @MockBean
+  @MockitoBean
   private ListenerService       listenerService;
 
   @Autowired
@@ -278,7 +283,8 @@ public class PwaManifestServiceTest {
 
     long manifestHash = pwaManifestService.getManifestHash();
     assertNotEquals(0l, manifestHash);
-    assertEquals(manifestHash, pwaManifestService.getManifestHash()); // No change
+    assertEquals(manifestHash, pwaManifestService.getManifestHash()); // No
+                                                                      // change
 
     mockWithStoredValues();
     pwaManifestService.refreshManifest();
@@ -306,7 +312,6 @@ public class PwaManifestServiceTest {
 
     pwaManifestService.init();
 
-
     PwaManifestUpdate manifestUpdate = new PwaManifestUpdate();
     manifestUpdate.setEnabled(true);
     manifestUpdate.setName("Name2");
@@ -314,17 +319,17 @@ public class PwaManifestServiceTest {
     manifestUpdate.setLargeIconUploadId("largeIconUploadId");
     manifestUpdate.setSmallIconUploadId("smallIconUploadId");
 
-    manifestUpdate.setThemeColor("themeColor2");
+    manifestUpdate.setThemeColor(THEME_COLOR_OTHER);
     manifestUpdate.setBackgroundColor("eval");
 
     assertThrows(IllegalArgumentException.class, () -> pwaManifestService.updateManifest(manifestUpdate, TEST_USER));
 
     manifestUpdate.setThemeColor("eval");
-    manifestUpdate.setBackgroundColor("backgroundColor2");
+    manifestUpdate.setBackgroundColor(BACKGROUND_COLOR_OTHER);
     assertThrows(IllegalArgumentException.class, () -> pwaManifestService.updateManifest(manifestUpdate, TEST_USER));
 
-    manifestUpdate.setThemeColor("themeColor2");
-    manifestUpdate.setBackgroundColor("backgroundColor2");
+    manifestUpdate.setThemeColor(THEME_COLOR_OTHER);
+    manifestUpdate.setBackgroundColor(BACKGROUND_COLOR_OTHER);
     assertThrows(IllegalArgumentException.class, () -> pwaManifestService.updateManifest(manifestUpdate, TEST_USER));
 
     when(fileService.writeFile(any())).thenAnswer(invocation -> {
@@ -335,22 +340,19 @@ public class PwaManifestServiceTest {
       return fileItem;
     });
 
-
     UploadResource largeIconUploadResource = mock(UploadResource.class);
     when(uploadService.getUploadResource(manifestUpdate.getLargeIconUploadId())).thenReturn(largeIconUploadResource);
     when(largeIconUploadResource.getStoreLocation()).thenReturn(getClass().getClassLoader()
-                                                                          .getResource("test_icon.png")
+                                                                          .getResource(TEST_ICON_PNG)
                                                                           .getPath());
     UploadResource smallIconUploadResource = mock(UploadResource.class);
     when(uploadService.getUploadResource(manifestUpdate.getSmallIconUploadId())).thenReturn(smallIconUploadResource);
     when(smallIconUploadResource.getStoreLocation()).thenReturn(getClass().getClassLoader()
-                                                                          .getResource("test_icon.png")
+                                                                          .getResource(TEST_ICON_PNG)
                                                                           .getPath());
 
-
-    InputStream is = ResourceReader.class
-        .getClassLoader()
-        .getResourceAsStream("test_icon.png");
+    InputStream is = ResourceReader.class.getClassLoader()
+                                         .getResourceAsStream(TEST_ICON_PNG);
 
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
 
@@ -367,13 +369,11 @@ public class PwaManifestServiceTest {
 
     byte[] data = baos.toByteArray();
 
-
     FileInfo fileInfo = mock(FileInfo.class);
     when(fileInfo.getUpdatedDate()).thenReturn(new Date(System.currentTimeMillis()));
     when(fileInfo.getSize()).thenReturn(Long.valueOf(data.length));
     FileItem monoChromeIconFileItem = new FileItem(fileInfo, new ByteArrayInputStream(data));
     when(fileService.getFile(anyLong())).thenReturn(monoChromeIconFileItem);
-
 
     pwaManifestService.updateManifest(manifestUpdate, TEST_USER);
 
@@ -458,17 +458,17 @@ public class PwaManifestServiceTest {
     manifestUpdate.setLargeIconUploadId("largeIconUploadId");
     manifestUpdate.setSmallIconUploadId("smallIconUploadId");
 
-    manifestUpdate.setThemeColor("themeColor2");
+    manifestUpdate.setThemeColor(THEME_COLOR_OTHER);
     manifestUpdate.setBackgroundColor("eval");
 
     assertThrows(IllegalArgumentException.class, () -> pwaManifestService.updateManifest(manifestUpdate, TEST_USER));
 
     manifestUpdate.setThemeColor("eval");
-    manifestUpdate.setBackgroundColor("backgroundColor2");
+    manifestUpdate.setBackgroundColor(BACKGROUND_COLOR_OTHER);
     assertThrows(IllegalArgumentException.class, () -> pwaManifestService.updateManifest(manifestUpdate, TEST_USER));
 
-    manifestUpdate.setThemeColor("themeColor2");
-    manifestUpdate.setBackgroundColor("backgroundColor2");
+    manifestUpdate.setThemeColor(THEME_COLOR_OTHER);
+    manifestUpdate.setBackgroundColor(BACKGROUND_COLOR_OTHER);
     assertThrows(IllegalArgumentException.class, () -> pwaManifestService.updateManifest(manifestUpdate, TEST_USER));
 
     when(fileService.writeFile(any())).thenAnswer(invocation -> {
@@ -482,12 +482,12 @@ public class PwaManifestServiceTest {
     UploadResource largeIconUploadResource = mock(UploadResource.class);
     when(uploadService.getUploadResource(manifestUpdate.getLargeIconUploadId())).thenReturn(largeIconUploadResource);
     when(largeIconUploadResource.getStoreLocation()).thenReturn(getClass().getClassLoader()
-                                                                          .getResource("test_icon.png")
+                                                                          .getResource(TEST_ICON_PNG)
                                                                           .getPath());
     UploadResource smallIconUploadResource = mock(UploadResource.class);
     when(uploadService.getUploadResource(manifestUpdate.getSmallIconUploadId())).thenReturn(smallIconUploadResource);
     when(smallIconUploadResource.getStoreLocation()).thenReturn(getClass().getClassLoader()
-                                                                          .getResource("test_icon.png")
+                                                                          .getResource(TEST_ICON_PNG)
                                                                           .getPath());
     pwaManifestService.updateManifest(manifestUpdate, TEST_USER);
     assertTrue(pwaManifestService.isPwaEnabled());
