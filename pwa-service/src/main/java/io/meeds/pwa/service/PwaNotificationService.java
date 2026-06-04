@@ -18,16 +18,21 @@
  */
 package io.meeds.pwa.service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -43,8 +48,6 @@ import org.exoplatform.commons.api.notification.service.WebNotificationService;
 import org.exoplatform.commons.exception.ObjectNotFoundException;
 import org.exoplatform.portal.Constants;
 import org.exoplatform.services.listener.ListenerService;
-import org.exoplatform.services.log.ExoLogger;
-import org.exoplatform.services.log.Log;
 import org.exoplatform.services.organization.OrganizationService;
 import org.exoplatform.services.organization.UserProfile;
 import org.exoplatform.services.resources.LocaleConfig;
@@ -60,11 +63,21 @@ import io.meeds.pwa.storage.PwaNotificationStorage;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import lombok.extern.slf4j.Slf4j;
 import nl.martijndwars.webpush.Notification;
 import nl.martijndwars.webpush.PushService;
 
 @Service
+@Slf4j
 public class PwaNotificationService {
+
+  public static final String           PROOF_PARAM                             = "proof";
+
+  public static final String           TIMESTAMP_PARAM                         = "timestamp";
+
+  public static final String           SUBSCRIPTION_ID_PARAM                   = "subscriptionId";
+
+  public static final String           PUSH_TOKEN_PARAM                        = "token";
 
   public static final String           PWA_NOTIFICATION_CREATED                = "pwa.notification.created";
 
@@ -72,7 +85,8 @@ public class PwaNotificationService {
 
   public static final String           PWA_NOTIFICATION_MARK_READ_USER_ACTION  = "markRead";
 
-  public static final String           PWA_NOTIFICATION_MARK_READ_ACTION_LABEL = "pwa.notification.action.markAsRead";
+  public static final String           PWA_NOTIFICATION_MARK_READ_ACTION_LABEL =
+                                                                               "pwa.notification.action.markAsRead";
 
   public static final String           EVENT_NOTIFICATION_SENT                 = "pwa.notificationSent";
 
@@ -100,10 +114,13 @@ public class PwaNotificationService {
 
   public static final String           EVENT_DURATION_PARAM_NAME               = "duration";
 
-  public static final Random           RANDOM                                  = new Random();
+  public static final String           EVENT_NOTIFICATION_TOKEN_PARAM_NAME     = PUSH_TOKEN_PARAM;
 
-  private static final Log             LOG                                     =
-                                           ExoLogger.getLogger(PwaNotificationService.class);
+  public static final String           EVENT_SUBSCRIPTION_ID_PARAM_NAME        = SUBSCRIPTION_ID_PARAM;
+
+  private static final String          PUSH_AUTH_SCHEME                        = "PWA-Notification";
+
+  private static final String          HMAC_ALGORITHM                          = "HmacSHA256";
 
   @Autowired
   private PwaManifestService           pwaManifestService;
@@ -135,6 +152,9 @@ public class PwaNotificationService {
   @Autowired
   private PushService                  pushService;
 
+  @Autowired
+  private PwaNotificationTokenService  pwaNotificationTokenService;
+
   @Value("${pwa.notifications.enabled:true}")
   private boolean                      enabled;
 
@@ -152,6 +172,9 @@ public class PwaNotificationService {
 
   @Value("${pwa.notifications.silent:false}")
   private boolean                      silent;
+
+  @Value("${pwa.notifications.push.token.ttl.seconds:28800}") // 8 hours
+  private int                          pushTokenTtlSeconds;
 
   @Autowired
   private List<PwaNotificationPlugin>  plugins;
@@ -187,6 +210,21 @@ public class PwaNotificationService {
     PwaNotificationMessage notificationMessage = notificationPlugin.process(notification, localeConfig);
     setDefaultNotificationMessageProperties(notificationMessage, notification.getId(), localeConfig);
     return notificationMessage;
+  }
+
+  public PwaNotificationMessage getNotificationFromPush(long webNotificationId,
+                                                        String authorizationHeader) throws ObjectNotFoundException,
+                                                                                    IllegalAccessException {
+    String username = validatePushNotificationAccess(webNotificationId, authorizationHeader);
+    return getNotification(webNotificationId, username);
+  }
+
+  public void updateNotificationFromPush(long webNotificationId,
+                                         String action,
+                                         String authorizationHeader) throws ObjectNotFoundException,
+                                                                     IllegalAccessException {
+    String username = validatePushNotificationAccess(webNotificationId, authorizationHeader);
+    updateNotification(webNotificationId, action, username);
   }
 
   public void updateNotification(long webNotificationId, String action, String username) throws ObjectNotFoundException,
@@ -253,7 +291,7 @@ public class PwaNotificationService {
 
   private int sendNotification(NotificationInfo notification, String action) {
     if (notification == null) {
-      LOG.warn("Can't send notification action {} since notification is null", action);
+      log.warn("Can't send notification action {} since notification is null", action);
       return 0;
     }
     String notificationId = notification.getId();
@@ -278,7 +316,7 @@ public class PwaNotificationService {
     }
   }
 
-  private int sendNotification(Map<String, Object> params) {
+  private int sendNotification(Map<String, Object> params) { // NOSONAR
     String userName = params.get(EVENT_USERNAME_PARAM_NAME).toString();
     List<UserPushSubscription> subscriptions = pwaSubscriptionService.getSubscriptions(userName);
     return subscriptions.stream()
@@ -286,10 +324,18 @@ public class PwaNotificationService {
                           long start = System.currentTimeMillis();
                           try {
                             String notificationType =
-                                                    StringUtils.isNotBlank((String) params.get(EVENT_NOTIFICATION_TYPE_PARAM_NAME)) ? (String) params.get(EVENT_NOTIFICATION_TYPE_PARAM_NAME)
-                                                                                                                                    : WEB_NOTIFICATION;
-                            String payload = notificationType + ":" + params.get(EVENT_NOTIFICATION_ID_PARAM_NAME) + ":"
-                                + params.get(EVENT_ACTION_PARAM_NAME);
+                                                    StringUtils.isNotBlank((String) params.get(EVENT_NOTIFICATION_TYPE_PARAM_NAME)) ?
+                                                                                                                                    (String) params.get(EVENT_NOTIFICATION_TYPE_PARAM_NAME) :
+                                                                                                                                    WEB_NOTIFICATION;
+                            String payload = "%s:%s:%s".formatted(notificationType,
+                                                                  params.get(EVENT_NOTIFICATION_ID_PARAM_NAME),
+                                                                  params.get(EVENT_ACTION_PARAM_NAME));
+                            if (StringUtils.equals(notificationType, WEB_NOTIFICATION)) {
+                              String pushToken = generatePushNotificationAccessToken(params, subscription);
+                              if (StringUtils.isNotBlank(pushToken)) {
+                                payload += ":%s:%s".formatted(pushToken, subscription.getId());
+                              }
+                            }
                             HttpResponse httpResponse = sendPushMessage(subscription, payload.getBytes());
                             StatusLine status = httpResponse.getStatusLine();
                             if (status.getStatusCode() == 410) {
@@ -312,19 +358,20 @@ public class PwaNotificationService {
                                              start,
                                              null);
                             } else {
-                              // Other push notifications managed by specific application should create their own statistics
-                              if(params.get(EVENT_NOTIFICATION_TYPE_PARAM_NAME).equals(WEB_NOTIFICATION)) {
+                              // Other push notifications managed by specific
+                              // application should create their own statistics
+                              if (params.get(EVENT_NOTIFICATION_TYPE_PARAM_NAME).equals(WEB_NOTIFICATION)) {
                                 broadcastEvent(EVENT_NOTIFICATION_SENT,
-                                        params,
-                                        subscription,
-                                        httpResponse,
-                                        start,
-                                        null);
+                                               params,
+                                               subscription,
+                                               httpResponse,
+                                               start,
+                                               null);
                               }
                               return 1;
                             }
                           } catch (Exception e) {
-                            LOG.warn("Error while sending push notification {} to user {}. Ignore reattempting and continue processing messages queue.",
+                            log.warn("Error while sending push notification {} to user {}. Ignore reattempting and continue processing messages queue.",
                                      params.get(EVENT_NOTIFICATION_ID_PARAM_NAME),
                                      userName,
                                      e);
@@ -342,18 +389,95 @@ public class PwaNotificationService {
   }
 
   private HttpResponse sendPushMessage(UserPushSubscription sub, byte[] payload) throws Exception { // NOSONAR
-    Notification notification = new Notification(
-                                                 sub.getEndpoint(),
+    Notification notification = new Notification(sub.getEndpoint(),
                                                  sub.userPublicKey(),
                                                  sub.authAsBytes(),
-                                                 payload);
+                                                 payload,
+                                                 pushTokenTtlSeconds);
     // Send the notification
     return pushService.send(notification);
   }
 
+  private String generatePushNotificationAccessToken(Map<String, Object> params, UserPushSubscription subscription) {
+    if (subscription == null || StringUtils.isBlank(subscription.getId())
+        || StringUtils.isBlank(subscription.getPushDeviceSecret())) {
+      return null;
+    }
+    String username = String.valueOf(params.get(EVENT_USERNAME_PARAM_NAME));
+    long notificationId = Long.parseLong(String.valueOf(params.get(EVENT_NOTIFICATION_ID_PARAM_NAME)));
+    return pwaNotificationTokenService.createToken(username, notificationId, subscription.getId());
+  }
+
+  private String validatePushNotificationAccess(long notificationId, String authorizationHeader) throws IllegalAccessException {
+    Map<String, String> parameters = parsePushAuthorizationHeader(authorizationHeader);
+    String token = parameters.get(PUSH_TOKEN_PARAM);
+    String subscriptionId = parameters.get(SUBSCRIPTION_ID_PARAM);
+    String timestamp = parameters.get(TIMESTAMP_PARAM);
+    String proof = parameters.get(PROOF_PARAM);
+    if (StringUtils.isAnyBlank(token, subscriptionId, timestamp, proof)) {
+      throw new IllegalAccessException("Missing push authorization parameters");
+    }
+    long timestampValue;
+    try {
+      timestampValue = Long.parseLong(timestamp);
+    } catch (NumberFormatException e) {
+      throw new IllegalAccessException("Invalid push authorization timestamp");
+    }
+    long now = System.currentTimeMillis();
+    if (Math.abs(now - timestampValue) > TimeUnit.SECONDS.toMillis(pushTokenTtlSeconds)) {
+      throw new IllegalAccessException("Expired push authorization proof");
+    }
+    String username = pwaNotificationTokenService.validateToken(token, notificationId, subscriptionId);
+    if (StringUtils.isBlank(username)) {
+      throw new IllegalAccessException("Invalid push notification token");
+    }
+    UserPushSubscription subscription = pwaSubscriptionService.getSubscription(username, subscriptionId);
+    if (subscription == null || StringUtils.isBlank(subscription.getPushDeviceSecret())) {
+      throw new IllegalAccessException("Unknown push subscription");
+    }
+    String expectedProof = computeHmac(subscription.getPushDeviceSecret(),
+                                       notificationId + ":" + token + ":" + subscriptionId + ":" + timestamp);
+    if (!MessageDigest.isEqual(expectedProof.getBytes(StandardCharsets.UTF_8), proof.getBytes(StandardCharsets.UTF_8))) {
+      throw new IllegalAccessException("Invalid push authorization proof");
+    }
+    String consumedUsername = pwaNotificationTokenService.consumeToken(token, notificationId, subscriptionId);
+    if (!StringUtils.equals(username, consumedUsername)) {
+      throw new IllegalAccessException("Push notification token already consumed");
+    }
+    return username;
+  }
+
+  private Map<String, String> parsePushAuthorizationHeader(String authorizationHeader) throws IllegalAccessException {
+    if (StringUtils.isBlank(authorizationHeader) || !StringUtils.startsWith(authorizationHeader, PUSH_AUTH_SCHEME + " ")) {
+      throw new IllegalAccessException("Missing push authorization header");
+    }
+    Map<String, String> parameters = new HashMap<>();
+    String[] parts = StringUtils.substringAfter(authorizationHeader, PUSH_AUTH_SCHEME + " ").split(",");
+    for (String part : parts) {
+      String key = StringUtils.trim(StringUtils.substringBefore(part, "="));
+      String value = StringUtils.trim(StringUtils.substringAfter(part, "="));
+      value = StringUtils.removeStart(value, "\"");
+      value = StringUtils.removeEnd(value, "\"");
+      if (StringUtils.isNotBlank(key) && StringUtils.isNotBlank(value)) {
+        parameters.put(key, value);
+      }
+    }
+    return parameters;
+  }
+
+  private String computeHmac(String secret, String value) throws IllegalAccessException {
+    try {
+      Mac mac = Mac.getInstance(HMAC_ALGORITHM);
+      mac.init(new SecretKeySpec(Base64.getDecoder().decode(secret), HMAC_ALGORITHM));
+      return Base64.getUrlEncoder().withoutPadding().encodeToString(mac.doFinal(value.getBytes(StandardCharsets.UTF_8)));
+    } catch (Exception e) {
+      throw new IllegalAccessException("Unable to compute push authorization proof");
+    }
+  }
+
   public void setDefaultNotificationMessageProperties(PwaNotificationMessage notificationMessage,
-                                                       String notificationId,
-                                                       LocaleConfig localeConfig) {
+                                                      String notificationId,
+                                                      LocaleConfig localeConfig) {
     List<PwaNotificationAction> notificationActions = notificationMessage.getActions();
     if (CollectionUtils.isEmpty(notificationMessage.getActions())
         || notificationActions.stream()
@@ -387,7 +511,7 @@ public class PwaNotificationService {
       return language == null ? localeConfigService.getDefaultLocaleConfig() : localeConfigService.getLocaleConfig(language);
     } catch (Exception e) {
       LocaleConfig defaultLocaleConfig = localeConfigService.getDefaultLocaleConfig();
-      LOG.warn("Error retrieving user {} language, use default language {}", username, defaultLocaleConfig.getLanguage());
+      log.warn("Error retrieving user {} language, use default language {}", username, defaultLocaleConfig.getLanguage());
       return defaultLocaleConfig;
     }
   }

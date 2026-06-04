@@ -25,36 +25,34 @@ import static org.mockito.Mockito.when;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import org.exoplatform.container.PortalContainer;
 import org.exoplatform.container.configuration.ConfigurationManager;
 
 @SpringBootTest(classes = {
-                            PwaSwService.class,
+  PwaSwService.class,
 })
 @TestPropertySource(properties = {
-                                   "pwa.service.worker.path=pwa/service-worker.js",
-                    })
+  "pwa.service.worker.path=pwa/service-worker.js",
+})
 public class PwaSwServiceTest {
 
-  @MockBean
+  @MockitoBean
   private PortalContainer      container;
 
-  @MockBean
+  @MockitoBean
   private ConfigurationManager configurationManager;
 
   @Autowired
   private PwaSwService         pwaSwService;
 
   @Test
-  @SuppressWarnings("resource")
   public void getContent() throws Exception {
     assertNull(pwaSwService.getContent());
-
     when(configurationManager.getInputStream("pwa/service-worker.js")).thenAnswer(invocation -> getClass().getClassLoader()
-                                                                                        .getResourceAsStream("pwa/service-worker.js"));
+                                                                                                          .getResourceAsStream("pwa/service-worker.js"));
     assertNotNull(pwaSwService.getContent());
   }
 
