@@ -50,17 +50,36 @@ public class PwaSubscriptionService {
     return pwaSubscriptionStorage.get(username);
   }
 
+  public UserPushSubscription getSubscription(String username, String id) {
+    return getSubscriptions(username).stream()
+                                     .filter(s -> StringUtils.equals(s.getId(), id))
+                                     .findFirst()
+                                     .orElse(null);
+  }
+
   public void createSubscription(UserPushSubscription subscription,
                                  String username) {
     List<UserPushSubscription> subscriptions = pwaSubscriptionStorage.get(username);
     String endpoint = subscription.getEndpoint();
-    if (subscriptions.stream().noneMatch(s -> StringUtils.equals(s.getEndpoint(), endpoint))) {
+    UserPushSubscription existingSubscription = subscriptions.stream()
+                                                             .filter(s -> StringUtils.equals(s.getEndpoint(), endpoint))
+                                                             .findFirst()
+                                                             .orElse(null);
+    if (existingSubscription == null) {
       LOG.info("Create new subscription with id {} for user {} and endpoint {}",
                subscription.getId(),
                username,
                getSubscriptionDomain(endpoint));
       pwaSubscriptionStorage.create(subscription, username);
       listenerService.broadcast(PWA_INSTALLED, username, subscription);
+    } else if (!StringUtils.equals(existingSubscription.getPushDeviceSecret(), subscription.getPushDeviceSecret())
+               || !StringUtils.equals(existingSubscription.getId(), subscription.getId())) {
+      LOG.info("Update subscription with id {} for user {} and endpoint {}",
+               subscription.getId(),
+               username,
+               getSubscriptionDomain(endpoint));
+      pwaSubscriptionStorage.delete(existingSubscription.getId(), username);
+      pwaSubscriptionStorage.create(subscription, username);
     } else {
       LOG.debug("Subscription for endpoint {} already exists for user {}", getSubscriptionDomain(endpoint), username);
     }

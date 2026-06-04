@@ -51,9 +51,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-import javax.ws.rs.PathParam;
-import javax.ws.rs.QueryParam;
-
 @RestController
 @RequestMapping("manifest")
 @Tag(name = "manifest", description = "Managing PWA Manifest")
