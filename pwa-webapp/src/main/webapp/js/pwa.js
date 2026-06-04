@@ -20,6 +20,7 @@
 
 (function(exoi18n) {
   if (!isPwaDisplay()
+    && 'onbeforeinstallprompt' in window
     && eXo.env.portal.pwaEnabled
     && eXo.env.portal.userName) {
     window.addEventListener('beforeinstallprompt', (e) => {
@@ -27,17 +28,14 @@
       window.deferredPwaPrompt = e;
       unsubscribe();
       document.dispatchEvent(new CustomEvent('pwa-beforeinstallprompt'));
-      if (window.localStorage
-          && !window.localStorage.getItem(`pwa.suggested-${eXo.env.portal.userName}`)) {
+      if (!isPwaSuggtested()) {
         window.deferredPwaPromptTimeout = window.setTimeout(async () => {
           const i18n = await exoi18n.loadLanguageAsync(eXo.env.portal.language, `/social/i18n/locale.portlet.Portlets?lang=${eXo.env.portal.language}`);
           document.dispatchEvent(new CustomEvent('alert-message', {detail:{
             alertMessage: i18n.messages?.[eXo.env.portal.language]?.['pwa.feature.suggest'],
             alertLinkText: i18n.messages?.[eXo.env.portal.language]?.['pwa.feature.suggest.install'],
             alertType: 'info',
-            alertDismissCallback: () => {
-              window.localStorage.setItem(`pwa.suggested-${eXo.env.portal.userName}`, 'true');
-            },
+            alertDismissCallback: () => setPwaSuggtested(),
             alertLinkCallback: () => {
               document.dispatchEvent(new CustomEvent('close-alert-message'));
               window.deferredPwaPrompt.prompt()
@@ -48,7 +46,7 @@
                     window.deferredPwaPrompt = null;
                     initSubscription();
                   }
-                  window.localStorage.setItem(`pwa.suggested-${eXo.env.portal.userName}`, 'true');
+                  setPwaSuggtested();
                 });
             },
           }}));
@@ -220,6 +218,22 @@
   function isPwaDisplay() {
     return window?.matchMedia('(display-mode: tabbed)')?.matches
       || window?.matchMedia('(display-mode: standalone)')?.matches;
+  }
+
+  function setPwaSuggtested() {
+    window.localStorage.setItem(`pwa.suggested-${eXo.env.portal.userName}`, 'true');
+  }
+
+  function isPwaSuggtested() {
+    return !window.localStorage || window.localStorage.getItem(`pwa.suggested-${eXo.env.portal.userName}`) === 'true';
+  }
+
+  function isBatterySettingDisplayed() {
+    return !window.localStorage || window.localStorage.getItem(`pwa.battery-optimization-${eXo.env.portal.userName}`) === 'true';
+  }
+
+  function setBatterySettingDisplayed() {
+    window.localStorage.setItem(`pwa.battery-optimization-${eXo.env.portal.userName}`, 'true');
   }
 
   return {
