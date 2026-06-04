@@ -20,9 +20,12 @@ package io.meeds.pwa.service;
 
 import static io.meeds.pwa.service.PwaSubscriptionService.PWA_INSTALLED;
 import static io.meeds.pwa.service.PwaSubscriptionService.PWA_UNINSTALLED;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -32,7 +35,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import org.exoplatform.services.listener.ListenerService;
 
@@ -40,7 +43,7 @@ import io.meeds.pwa.model.UserPushSubscription;
 import io.meeds.pwa.storage.PwaSubscriptionStorage;
 
 @SpringBootTest(classes = {
-                            PwaSubscriptionService.class,
+  PwaSubscriptionService.class,
 })
 public class PwaSubscriptionServiceTest {
 
@@ -48,12 +51,16 @@ public class PwaSubscriptionServiceTest {
 
   private static final String    SUBSCRIPTION_ENDPOINT = "http://localhost/endpoint";
 
+  private static final String    PUSH_DEVICE_SECRET    = "deviceSecret";
+
+  private static final String    NEW_SUBSCRIPTION_ID   = "newSubscriptionId";
+
   private static final String    TEST_USER             = "testUser";
 
-  @MockBean
+  @MockitoBean
   private PwaSubscriptionStorage pwaSubscriptionStorage;
 
-  @MockBean
+  @MockitoBean
   private ListenerService        listenerService;
 
   @Autowired
@@ -96,6 +103,65 @@ public class PwaSubscriptionServiceTest {
     when(userPushSubscription.getId()).thenReturn(SUBSCRIPTION_ID);
     pwaSubscriptionService.deleteAllSubscriptions(TEST_USER);
     verify(pwaSubscriptionStorage).delete(SUBSCRIPTION_ID, TEST_USER);
+  }
+
+
+  @Test
+  public void getSubscriptionShouldReturnMatchingSubscription() {
+    when(pwaSubscriptionStorage.get(TEST_USER)).thenReturn(Collections.singletonList(userPushSubscription));
+    when(userPushSubscription.getId()).thenReturn(SUBSCRIPTION_ID);
+
+    UserPushSubscription result = pwaSubscriptionService.getSubscription(TEST_USER, SUBSCRIPTION_ID);
+
+    assertEquals(userPushSubscription, result);
+    assertNull(pwaSubscriptionService.getSubscription(TEST_USER, "unknown"));
+  }
+
+  @Test
+  public void createSubscriptionShouldUpdateExistingSubscriptionWhenSecretChanges() {
+    UserPushSubscription newSubscription = new UserPushSubscription();
+    newSubscription.setId(SUBSCRIPTION_ID);
+    newSubscription.setEndpoint(SUBSCRIPTION_ENDPOINT);
+    newSubscription.setPushDeviceSecret(PUSH_DEVICE_SECRET);
+
+    when(pwaSubscriptionStorage.get(TEST_USER)).thenReturn(Collections.singletonList(userPushSubscription));
+    when(userPushSubscription.getEndpoint()).thenReturn(SUBSCRIPTION_ENDPOINT);
+    when(userPushSubscription.getId()).thenReturn(SUBSCRIPTION_ID);
+    when(userPushSubscription.getPushDeviceSecret()).thenReturn(null);
+
+    pwaSubscriptionService.createSubscription(newSubscription, TEST_USER);
+
+    verify(pwaSubscriptionStorage).delete(SUBSCRIPTION_ID, TEST_USER);
+    verify(pwaSubscriptionStorage).create(newSubscription, TEST_USER);
+    verify(listenerService, never()).broadcast(PWA_INSTALLED, TEST_USER, newSubscription);
+  }
+
+  @Test
+  public void createSubscriptionShouldUpdateExistingSubscriptionWhenIdChanges() {
+    UserPushSubscription newSubscription = new UserPushSubscription();
+    newSubscription.setId(NEW_SUBSCRIPTION_ID);
+    newSubscription.setEndpoint(SUBSCRIPTION_ENDPOINT);
+    newSubscription.setPushDeviceSecret(PUSH_DEVICE_SECRET);
+
+    when(pwaSubscriptionStorage.get(TEST_USER)).thenReturn(Collections.singletonList(userPushSubscription));
+    when(userPushSubscription.getEndpoint()).thenReturn(SUBSCRIPTION_ENDPOINT);
+    when(userPushSubscription.getId()).thenReturn(SUBSCRIPTION_ID);
+    when(userPushSubscription.getPushDeviceSecret()).thenReturn(PUSH_DEVICE_SECRET);
+
+    pwaSubscriptionService.createSubscription(newSubscription, TEST_USER);
+
+    verify(pwaSubscriptionStorage).delete(SUBSCRIPTION_ID, TEST_USER);
+    verify(pwaSubscriptionStorage).create(newSubscription, TEST_USER);
+  }
+
+  @Test
+  public void deleteSubscriptionShouldNotBroadcastWhenUserActionIsFalse() {
+    when(pwaSubscriptionStorage.delete(SUBSCRIPTION_ID, TEST_USER)).thenReturn(userPushSubscription);
+
+    pwaSubscriptionService.deleteSubscription(SUBSCRIPTION_ID, TEST_USER, false);
+
+    verify(pwaSubscriptionStorage).delete(SUBSCRIPTION_ID, TEST_USER);
+    verifyNoInteractions(listenerService);
   }
 
 }

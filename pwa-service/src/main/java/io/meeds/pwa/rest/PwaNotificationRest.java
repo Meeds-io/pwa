@@ -25,6 +25,7 @@ import org.springframework.security.access.annotation.Secured;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -63,6 +64,53 @@ public class PwaNotificationRest {
                                                 long notificationId) {
     try {
       return pwaNotificationService.getNotification(notificationId, request.getRemoteUser());
+    } catch (ObjectNotFoundException e) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+    } catch (IllegalAccessException e) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage());
+    }
+  }
+
+  @GetMapping("{id}/push")
+  @Operation(summary = "Get Web Notification from push token",
+             description = "Get Web Notification from push token",
+             method = "GET")
+  @ApiResponses(value = {
+                          @ApiResponse(responseCode = "200", description = "Web Notification retrieved"),
+  })
+  public PwaNotificationMessage getNotificationFromPush(
+                                                        @Parameter(description = "The Web Notification Identifier")
+                                                        @PathVariable("id")
+                                                        long notificationId,
+                                                        @RequestHeader(value = "Authorization", required = false)
+                                                        String authorizationHeader) {
+    try {
+      return pwaNotificationService.getNotificationFromPush(notificationId, authorizationHeader);
+    } catch (ObjectNotFoundException e) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+    } catch (IllegalAccessException e) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage());
+    }
+  }
+
+  @PatchMapping(path = "{id}/push", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
+  @Operation(summary = "Update Web Notification from push token",
+             description = "Update Web Notification from push token",
+             method = "PATCH")
+  @ApiResponses(value = {
+                          @ApiResponse(responseCode = "204", description = "Web Notification updated"),
+  })
+  public void updateNotificationPropertyFromPush(
+                                                 @Parameter(description = "The Web Notification Identifier")
+                                                 @PathVariable("id")
+                                                 long notificationId,
+                                                 @Parameter(description = "The Web Notification action")
+                                                 @RequestParam("action")
+                                                 String action,
+                                                 @RequestHeader(value = "Authorization", required = false)
+                                                 String authorizationHeader) {
+    try {
+      pwaNotificationService.updateNotificationFromPush(notificationId, action, authorizationHeader);
     } catch (ObjectNotFoundException e) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
     } catch (IllegalAccessException e) {

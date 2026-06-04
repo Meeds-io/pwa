@@ -19,6 +19,11 @@
  */
 
 (function(exoi18n) {
+  const pushDeviceDbName = 'pwa-push-device';
+  const pushDeviceStoreName = 'secrets';
+  const pushDeviceSecretKeyPrefix = 'push-device-secret-';
+  const pushVersion = 'v1.0';
+
   if (!isPwaDisplay()
     && 'onbeforeinstallprompt' in window
     && eXo.env.portal.pwaEnabled
@@ -157,9 +162,13 @@
       });
     }
     if (isNew
-      || subscription.endpoint !== window.localStorage.getItem(`pwa.notification.endpoint-${eXo.env.portal.userName}`)) {
+      || subscription.endpoint !== window.localStorage.getItem(`pwa.notification.endpoint-${eXo.env.portal.userName}`)
+      || !isSamePushVersion()) {
       const key = subscription?.getKey?.('p256dh') || '';
       const auth = subscription?.getKey?.('auth') || '';
+      const subscriptionId = getSubscriptionId();
+      const pushDeviceSecret = await getPushDeviceSecret(subscriptionId);
+      await sendPushDeviceSecretToServiceWorker(registration, subscriptionId, pushDeviceSecret);
       await fetch('/pwa/rest/subscriptions', {
         method: 'POST',
         credentials: 'include',
@@ -167,10 +176,11 @@
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          id: getSubscriptionId(),
+          id: subscriptionId,
           endpoint: subscription.endpoint,
           key: key && btoa(String.fromCharCode.apply(null, new Uint8Array(key))) || '',
-          auth: auth && btoa(String.fromCharCode.apply(null, new Uint8Array(auth))) || ''
+          auth: auth && btoa(String.fromCharCode.apply(null, new Uint8Array(auth))) || '',
+          pushDeviceSecret,
         }),
       })
         .then(() => window.localStorage.setItem(`pwa.notification.endpoint-${eXo.env.portal.userName}`, subscription.endpoint));
@@ -193,7 +203,8 @@
             id: subscriptionId,
           }),
         })
-          .finally(() => {
+          .finally(async () => {
+            await deletePushDeviceSecret(subscriptionId);
             window.localStorage.removeItem(`pwa.notification.subscription.id-${eXo.env.portal.userName}`);
             window.localStorage.removeItem(`pwa.notification.endpoint-${eXo.env.portal.userName}`);
           });
@@ -228,12 +239,89 @@
     return !window.localStorage || window.localStorage.getItem(`pwa.suggested-${eXo.env.portal.userName}`) === 'true';
   }
 
-  function isBatterySettingDisplayed() {
-    return !window.localStorage || window.localStorage.getItem(`pwa.battery-optimization-${eXo.env.portal.userName}`) === 'true';
+  function setPushVersion() {
+    window.localStorage.setItem(`pwa.push-version-${eXo.env.portal.userName}`, pushVersion);
   }
 
-  function setBatterySettingDisplayed() {
-    window.localStorage.setItem(`pwa.battery-optimization-${eXo.env.portal.userName}`, 'true');
+  function isSamePushVersion() {
+    return window.localStorage.getItem(`pwa.push-version-${eXo.env.portal.userName}`) === pushVersion;
+  }
+
+  async function sendPushDeviceSecretToServiceWorker(registration, subscriptionId, pushDeviceSecret) {
+    const serviceWorker = registration?.active || registration?.waiting || registration?.installing || navigator.serviceWorker.controller;
+    serviceWorker?.postMessage?.({
+      action: 'set-push-device-secret',
+      subscriptionId,
+      pushDeviceSecret,
+    });
+  }
+
+  async function getPushDeviceSecret(subscriptionId) {
+    const storageKey = `${pushDeviceSecretKeyPrefix}${subscriptionId}`;
+    let pushDeviceSecret = await getPushDeviceStoreValue(storageKey);
+    if (!pushDeviceSecret) {
+      const secret = new Uint8Array(32);
+      window.crypto.getRandomValues(secret);
+      pushDeviceSecret = btoa(String.fromCharCode.apply(null, secret));
+      await setPushDeviceStoreValue(storageKey, pushDeviceSecret);
+    }
+    return pushDeviceSecret;
+  }
+
+  async function deletePushDeviceSecret(subscriptionId) {
+    return deletePushDeviceStoreValue(`${pushDeviceSecretKeyPrefix}${subscriptionId}`);
+  }
+
+  async function openPushDeviceStore() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(pushDeviceDbName, 1);
+      request.onupgradeneeded = () => request.result.createObjectStore(pushDeviceStoreName);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async function getPushDeviceStoreValue(key) {
+    const db = await openPushDeviceStore();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(pushDeviceStoreName, 'readonly');
+      const request = transaction.objectStore(pushDeviceStoreName).get(key);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+      transaction.oncomplete = () => db.close();
+    });
+  }
+
+  async function setPushDeviceStoreValue(key, value) {
+    const db = await openPushDeviceStore();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(pushDeviceStoreName, 'readwrite');
+      transaction.objectStore(pushDeviceStoreName).put(value, key);
+      transaction.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      transaction.onerror = () => {
+        db.close();
+        reject(transaction.error);
+      };
+    });
+  }
+
+  async function deletePushDeviceStoreValue(key) {
+    const db = await openPushDeviceStore();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(pushDeviceStoreName, 'readwrite');
+      transaction.objectStore(pushDeviceStoreName).delete(key);
+      transaction.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      transaction.onerror = () => {
+        db.close();
+        reject(transaction.error);
+      };
+    });
   }
 
   return {

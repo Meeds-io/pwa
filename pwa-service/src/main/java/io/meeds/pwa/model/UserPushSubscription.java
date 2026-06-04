@@ -46,6 +46,8 @@ public class UserPushSubscription {
 
   private String deviceType;
 
+  private String pushDeviceSecret;
+
   public byte[] authAsBytes() {
     return Base64.getDecoder().decode(getAuth());
   }

@@ -90,9 +90,9 @@ public class PwaManifestService {
 
   public static final String      DEPRECATED_PUSH_CHANNEL_ID = "PUSH_CHANNEL";
 
-  public static final String      PWA_LARGE_ICON_BASE_PATH   = "/pwa/rest/manifest/largeIcon";               // NOSONAR
+  public static final String      PWA_LARGE_ICON_BASE_PATH   = "/pwa/rest/manifest/largeIcon";                  // NOSONAR
 
-  public static final String      PWA_SMALL_ICON_BASE_PATH   = "/pwa/rest/manifest/smallIcon";               // NOSONAR
+  public static final String      PWA_SMALL_ICON_BASE_PATH   = "/pwa/rest/manifest/smallIcon";                  // NOSONAR
 
   public static final String      FILE_API_NAME_SPACE        = "CompanyBranding";
 
@@ -178,7 +178,7 @@ public class PwaManifestService {
 
   private ManifestIcon            smallIcon                  = null;
 
-  private ManifestIcon            monochromeIcon                  = null;
+  private ManifestIcon            monochromeIcon             = null;
 
   @PostConstruct
   @ContainerTransactional
@@ -576,7 +576,8 @@ public class PwaManifestService {
     return this.monochromeIcon;
   }
 
-  public byte[] convertToMonochrome(byte[] inputBytes) throws Exception {
+  @SneakyThrows
+  public byte[] convertToMonochrome(byte[] inputBytes) {
     BufferedImage input;
 
     try (ByteArrayInputStream bais = new ByteArrayInputStream(inputBytes)) {
