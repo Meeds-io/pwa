@@ -29,7 +29,7 @@
             </v-card>
             <v-tooltip
               v-else
-              :disabled="pwaSupported && pwaEnabled"
+              :disabled="pwaEnabled"
               bottom>
               <template #activator="{on, attrs}">
                 <div
@@ -38,19 +38,14 @@
                   <v-btn
                     :aria-label="$t('UserSettings.pwa.install')"
                     :loading="loading"
-                    :disabled="disabledButton || !pwaSupported || !pwaEnabled"
+                    :disabled="disabledButton || !pwaEnabled"
                     class="btn"
                     @click.native="installPwa">
                     {{ $t('UserSettings.pwa.install') }}
                   </v-btn>
                 </div>
               </template>
-              <span v-if="!pwaSupported">
-                {{ $t('UserSettings.pwa.browserNotSupported') }}
-              </span>
-              <span v-else-if="!pwaEnabled">
-                {{ $t('UserSettings.pwa.pwaNotEnabled') }}
-              </span>
+              <span>{{ $t('UserSettings.pwa.pwaNotEnabled') }}</span>
             </v-tooltip>
           </v-list-item-action>
         </v-list-item>
@@ -122,6 +117,8 @@
           class=" d-flex flex-column" />
       </v-list>
     </v-card>
+    <user-setting-pwa-help-drawer
+      ref="pwaSupportHelpDrawer" />
   </v-app>
 </template>
 <script>
@@ -167,6 +164,7 @@ export default {
     });
     document.addEventListener('pwa-beforeinstallprompt', this.checkInstalled);
     this.pwaSupported = 'onbeforeinstallprompt' in window;
+    console.warn('this.pwaSupported', this.pwaSupported);
     this.checkInstalled();
   },
   mounted() {
@@ -176,24 +174,28 @@ export default {
     async checkInstalled() {
       const pwaMode = !!(window?.matchMedia('(display-mode: standalone)')?.matches || window?.matchMedia('(display-mode: tabbed)')?.matches);
       const installed = pwaMode || (this.pwaEnabled && this.pwaSupported && !window.deferredPwaPrompt) || false;
-      const registration = await navigator.serviceWorker.getRegistration();
+      const registration = await navigator?.serviceWorker?.getRegistration?.();
       this.installed = installed && !!registration;
       if (window.deferredPwaPromptTimeout) {
         window.clearTimeout(window.deferredPwaPromptTimeout);
       }
     },
     async installPwa() {
-      this.loading = true;
-      try {
-        await window.deferredPwaPrompt.prompt();
-        const { outcome } = await window.deferredPwaPrompt.userChoice;
-        if (outcome === 'accepted') {
-          window.deferredPwaPrompt = null;
-          this.installed = true;
-          pwa.init();
+      if (this.pwaSupported) {
+        this.loading = true;
+        try {
+          await window.deferredPwaPrompt.prompt();
+          const { outcome } = await window.deferredPwaPrompt.userChoice;
+          if (outcome === 'accepted') {
+            window.deferredPwaPrompt = null;
+            this.installed = true;
+            pwa.init();
+          }
+        } finally {
+          this.loading = false;
         }
-      } finally {
-        this.loading = false;
+      } else {
+        this.$refs.pwaSupportHelpDrawer.open();
       }
     },
     async requestPermission() {

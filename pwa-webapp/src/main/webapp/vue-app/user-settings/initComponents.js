@@ -17,9 +17,11 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 import UserSettingPwa from './components/UserSettingPwa.vue';
+import UserSettingPwaHelpDrawer from './components/UserSettingPwaHelpDrawer.vue';
 
 const components = {
   'user-setting-pwa': UserSettingPwa,
+  'user-setting-pwa-help-drawer': UserSettingPwaHelpDrawer,
 };
 
 for (const key in components) {
