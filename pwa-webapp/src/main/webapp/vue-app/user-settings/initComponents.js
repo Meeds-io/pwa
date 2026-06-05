@@ -18,10 +18,12 @@
  */
 import UserSettingPwa from './components/UserSettingPwa.vue';
 import UserSettingPwaHelpDrawer from './components/UserSettingPwaHelpDrawer.vue';
+import UserSettingPwaIOsHelpDrawer from './components/UserSettingPwaIOsHelpDrawer.vue';
 
 const components = {
   'user-setting-pwa': UserSettingPwa,
   'user-setting-pwa-help-drawer': UserSettingPwaHelpDrawer,
+  'user-setting-pwa-ios-help-drawer': UserSettingPwaIOsHelpDrawer,
 };
 
 for (const key in components) {

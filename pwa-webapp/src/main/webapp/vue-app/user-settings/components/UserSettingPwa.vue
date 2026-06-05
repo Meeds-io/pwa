@@ -117,7 +117,11 @@
           class=" d-flex flex-column" />
       </v-list>
     </v-card>
+    <user-setting-pwa-ios-help-drawer
+      v-if="isIOs"
+      ref="pwaSupportHelpDrawer" />
     <user-setting-pwa-help-drawer
+      v-else
       ref="pwaSupportHelpDrawer" />
   </v-app>
 </template>
@@ -130,6 +134,7 @@ export default {
     pwaSupported: true,
     notificationPermission: Notification.permission,
     disabledButton: false,
+    isIOs: false,
     loading: false,
     permissionLoading: false,
   }),
@@ -164,6 +169,7 @@ export default {
     });
     document.addEventListener('pwa-beforeinstallprompt', this.checkInstalled);
     this.pwaSupported = 'onbeforeinstallprompt' in window;
+    this.isIOs = this.isIOsAgent();
     this.checkInstalled();
   },
   mounted() {
@@ -196,6 +202,11 @@ export default {
       } else {
         this.$refs.pwaSupportHelpDrawer.open();
       }
+    },
+    isIOsAgent() {
+      const traditionalTouch = /iPhone|iPad|iPod/.test(navigator.userAgent);
+      const modernIPad = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+      return traditionalTouch || modernIPad;
     },
     async requestPermission() {
       this.permissionLoading = true;
