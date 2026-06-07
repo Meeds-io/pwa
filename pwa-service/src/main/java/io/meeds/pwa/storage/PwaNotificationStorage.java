@@ -24,7 +24,10 @@ import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
+import java.util.Collections;
+import java.util.Map;
 
+import org.apache.commons.lang3.StringUtils;
 import org.bouncycastle.jce.interfaces.ECPrivateKey;
 import org.bouncycastle.jce.interfaces.ECPublicKey;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,22 +44,26 @@ import org.exoplatform.web.security.codec.CodecInitializer;
 
 import io.meeds.common.ContainerTransactional;
 import io.meeds.pwa.utils.VapidKeysUtils;
+import io.meeds.social.util.JsonUtils;
 
-import io.micrometer.common.util.StringUtils;
 import lombok.SneakyThrows;
 
 @Component
 public class PwaNotificationStorage {
 
-  private static final Log     LOG                   = ExoLogger.getLogger(PwaNotificationStorage.class);
+  private static final Log     LOG                               = ExoLogger.getLogger(PwaNotificationStorage.class);
 
-  private static final Context PWA_CONTEXT           = Context.GLOBAL.id("PWA");
+  private static final Context PWA_CONTEXT                       = Context.GLOBAL.id("PWA");
 
-  private static final Scope   PWA_VAPID_KEYS_SCOPE  = Scope.APPLICATION.id("PWA_VAPID_KEYS");
+  private static final Scope   PWA_VAPID_KEYS_SCOPE              = Scope.APPLICATION.id("PWA_VAPID_KEYS");
 
-  private static final String  PWA_VAPID_PUBLIC_KEY  = "VAPID_PUBLIC_KEY";
+  private static final Scope   PWA_PUSH_DELIVERY_DELAY_SCOPE     = Scope.APPLICATION.id("PWA_PUSH_DELIVERY_DELAY");
 
-  private static final String  PWA_VAPID_PRIVATE_KEY = "VAPID_PRIVATE_KEY";
+  private static final String  PWA_PUSH_EXCESSIVE_DELIVERY_DELAY = "PWA_PUSH_EXCESSIVE_DELIVERY_DELAY-%s";
+
+  private static final String  PWA_VAPID_PUBLIC_KEY              = "VAPID_PUBLIC_KEY";
+
+  private static final String  PWA_VAPID_PRIVATE_KEY             = "VAPID_PRIVATE_KEY";
 
   @Autowired
   private SettingService       settingService;
@@ -87,6 +94,44 @@ public class PwaNotificationStorage {
 
   public String getVapidPublicKeyString() {
     return getValue(PWA_VAPID_KEYS_SCOPE, PWA_VAPID_PUBLIC_KEY);
+  }
+
+  public void recordExcessivePushDeliveryDelay(String username, String subscriptionId, long delayMs) {
+    Map<String, Object> params = Map.of("subscriptionId",
+                                        subscriptionId,
+                                        "detectedAt",
+                                        System.currentTimeMillis(),
+                                        "delayMs",
+                                        delayMs);
+    setValue(Context.USER.id(username),
+             PWA_PUSH_DELIVERY_DELAY_SCOPE,
+             PWA_PUSH_EXCESSIVE_DELIVERY_DELAY.formatted(subscriptionId),
+             JsonUtils.toJsonString(params));
+  }
+
+  @SuppressWarnings("unchecked")
+  public Map<String, Object> getPushDeliveryDelayStatus(String username, String subscriptionId, long maxAgeMillis) {
+    String paramsString = getValue(Context.USER.id(username),
+                                   PWA_PUSH_DELIVERY_DELAY_SCOPE,
+                                   PWA_PUSH_EXCESSIVE_DELIVERY_DELAY.formatted(subscriptionId));
+    if (StringUtils.isBlank(paramsString)) {
+      return Collections.emptyMap();
+    } else {
+      Map<String, Object> params = (Map<String, Object>) JsonUtils.fromJsonString(paramsString, Map.class);// NOSONAR
+      long detectedAt = Long.parseLong(params.get("detectedAt").toString());
+      if (System.currentTimeMillis() - detectedAt > maxAgeMillis) {
+        resetPushDeliveryDelay(username, subscriptionId);
+        return Collections.emptyMap();
+      } else {
+        return params;
+      }
+    }
+  }
+
+  public void resetPushDeliveryDelay(String username, String subscriptionId) {
+    removeValue(Context.USER.id(username),
+                PWA_PUSH_DELIVERY_DELAY_SCOPE,
+                PWA_PUSH_EXCESSIVE_DELIVERY_DELAY.formatted(subscriptionId));
   }
 
   @ContainerTransactional
@@ -134,6 +179,10 @@ public class PwaNotificationStorage {
 
   private void setValue(Context context, Scope scope, String key, String value) {
     settingService.set(context, scope, key, SettingValue.create(value));
+  }
+
+  private void removeValue(Context context, Scope scope, String key) {
+    settingService.remove(context, scope, key);
   }
 
   @SneakyThrows

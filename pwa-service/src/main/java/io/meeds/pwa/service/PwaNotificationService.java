@@ -71,56 +71,69 @@ import nl.martijndwars.webpush.PushService;
 @Slf4j
 public class PwaNotificationService {
 
-  public static final String           PROOF_PARAM                             = "proof";
+  public static final String           PROOF_PARAM                                   = "proof";
 
-  public static final String           TIMESTAMP_PARAM                         = "timestamp";
+  public static final String           TIMESTAMP_PARAM                               = "timestamp";
 
-  public static final String           SUBSCRIPTION_ID_PARAM                   = "subscriptionId";
+  public static final String           SUBSCRIPTION_ID_PARAM                         = "subscriptionId";
 
-  public static final String           PUSH_TOKEN_PARAM                        = "token";
+  public static final String           PUSH_TOKEN_PARAM                              = "token";
 
-  public static final String           PWA_NOTIFICATION_CREATED                = "pwa.notification.created";
+  public static final String           PWA_NOTIFICATION_CREATED                      = "pwa.notification.created";
 
-  public static final String           PWA_NOTIFICATION_OPEN_UI_ACTION         = "open";
+  public static final String           PWA_NOTIFICATION_RECEIVED                     = "pwa.notification.received";
 
-  public static final String           PWA_NOTIFICATION_MARK_READ_USER_ACTION  = "markRead";
+  public static final String           PWA_NOTIFICATION_OPEN_UI_ACTION               = "open";
 
-  public static final String           PWA_NOTIFICATION_MARK_READ_ACTION_LABEL =
-                                                                               "pwa.notification.action.markAsRead";
+  public static final String           PWA_NOTIFICATION_MARK_READ_USER_ACTION        = "markRead";
 
-  public static final String           EVENT_NOTIFICATION_SENT                 = "pwa.notificationSent";
+  public static final String           PWA_NOTIFICATION_MARK_READ_ACTION_LABEL       = "pwa.notification.action.markAsRead";
 
-  public static final String           EVENT_NOTIFICATION_RESPONSE_ERROR       = "pwa.notificationResponseError";
+  public static final String           PWA_NOTIFICATION_PUSH_DELAY_TIME              = "pwa.notification.pushDelay";
 
-  public static final String           EVENT_NOTIFICATION_SENDING_ERROR        = "pwa.notificationSendingError";
+  public static final String           PWA_NOTIFICATION_PUSH_EFFECTIVE_RECEIVED_TIME = "pwa.notification.pushEffectiveReceivedAt";
 
-  public static final String           EVENT_OUTDATED_SUBSCRIPTION             = "pwa.outdatedSubscription";
+  public static final String           PWA_NOTIFICATION_PUSH_RECEIVED_TIME           = "pwa.notification.pushReceivedAt";
 
-  public static final String           EVENT_ERROR_PARAM_NAME                  = "error";
+  public static final String           PWA_NOTIFICATION_PUSH_SENT_TIME               = "pwa.notification.pushSentAt";
 
-  public static final String           EVENT_SUBSCRIPTION_PARAM_NAME           = "subscription";
+  public static final String           EVENT_NOTIFICATION_SENT                       = "pwa.notificationSent";
 
-  public static final String           EVENT_HTTP_RESPONSE_PARAM_NAME          = "httpResponse";
+  public static final String           EVENT_NOTIFICATION_RESPONSE_ERROR             = "pwa.notificationResponseError";
 
-  public static final String           EVENT_NOTIFICATION_ID_PARAM_NAME        = "notificationId";
+  public static final String           EVENT_NOTIFICATION_SENDING_ERROR              = "pwa.notificationSendingError";
 
-  public static final String           EVENT_ACTION_PARAM_NAME                 = "action";
+  public static final String           EVENT_OUTDATED_SUBSCRIPTION                   = "pwa.outdatedSubscription";
 
-  public static final String           EVENT_NOTIFICATION_TYPE_PARAM_NAME      = "type";
+  public static final String           EVENT_ERROR_PARAM_NAME                        = "error";
 
-  public static final String           WEB_NOTIFICATION                        = "WEB_NOTIFICATION";
+  public static final String           EVENT_SUBSCRIPTION_PARAM_NAME                 = "subscription";
 
-  public static final String           EVENT_USERNAME_PARAM_NAME               = "username";
+  public static final String           EVENT_HTTP_RESPONSE_PARAM_NAME                = "httpResponse";
 
-  public static final String           EVENT_DURATION_PARAM_NAME               = "duration";
+  public static final String           EVENT_NOTIFICATION_ID_PARAM_NAME              = "notificationId";
 
-  public static final String           EVENT_NOTIFICATION_TOKEN_PARAM_NAME     = PUSH_TOKEN_PARAM;
+  public static final String           EVENT_ACTION_PARAM_NAME                       = "action";
 
-  public static final String           EVENT_SUBSCRIPTION_ID_PARAM_NAME        = SUBSCRIPTION_ID_PARAM;
+  public static final String           EVENT_NOTIFICATION_TYPE_PARAM_NAME            = "type";
 
-  private static final String          PUSH_AUTH_SCHEME                        = "PWA-Notification";
+  public static final String           WEB_NOTIFICATION                              = "WEB_NOTIFICATION";
 
-  private static final String          HMAC_ALGORITHM                          = "HmacSHA256";
+  public static final String           EVENT_USERNAME_PARAM_NAME                     = "username";
+
+  public static final String           EVENT_DURATION_PARAM_NAME                     = "duration";
+
+  public static final String           EVENT_NOTIFICATION_TOKEN_PARAM_NAME           = PUSH_TOKEN_PARAM;
+
+  public static final String           EVENT_SUBSCRIPTION_ID_PARAM_NAME              = SUBSCRIPTION_ID_PARAM;
+
+  private static final String          MSG_NOTIFICATION_ACCESS_DENIED                = "Notification with id %s access denied";
+
+  private static final String          MSG_NOTIFICATION_NOT_FOUND                    = "Notification with id %s doesn't exists";
+
+  private static final String          PUSH_AUTH_SCHEME                              = "PWA-Notification";
+
+  private static final String          HMAC_ALGORITHM                                = "HmacSHA256";
 
   @Autowired
   private PwaManifestService           pwaManifestService;
@@ -173,8 +186,11 @@ public class PwaNotificationService {
   @Value("${pwa.notifications.silent:false}")
   private boolean                      silent;
 
-  @Value("${pwa.notifications.push.token.ttl.seconds:28800}") // 8 hours
+  @Value("${pwa.notifications.push.token.ttl.seconds:28800}") // 8hours
   private int                          pushTokenTtlSeconds;
+
+  @Value("${pwa.notifications.push.token.ttl.excessiveDelayThreshold:30}") // 30sec
+  private int                          pushNotificationExcessiveDelayThreshold;
 
   @Autowired
   private List<PwaNotificationPlugin>  plugins;
@@ -197,9 +213,9 @@ public class PwaNotificationService {
                                                                                          IllegalAccessException {
     NotificationInfo notification = webNotificationService.getNotificationInfo(String.valueOf(webNotificationId));
     if (notification == null) {
-      throw new ObjectNotFoundException(String.format("Notification with id %s doesn't exists", webNotificationId));
+      throw new ObjectNotFoundException(String.format(MSG_NOTIFICATION_NOT_FOUND, webNotificationId));
     } else if (!StringUtils.equals(notification.getTo(), username)) {
-      throw new IllegalAccessException(String.format("Notification with id %s access denied", webNotificationId));
+      throw new IllegalAccessException(String.format(MSG_NOTIFICATION_ACCESS_DENIED, webNotificationId));
     }
     String pluginId = notification.getKey().getId();
     PwaNotificationPlugin notificationPlugin = plugins.stream()
@@ -213,27 +229,76 @@ public class PwaNotificationService {
   }
 
   public PwaNotificationMessage getNotificationFromPush(long webNotificationId,
-                                                        String authorizationHeader) throws ObjectNotFoundException,
+                                                        String authorizationHeader,
+                                                        String username) throws ObjectNotFoundException,
                                                                                     IllegalAccessException {
-    String username = validatePushNotificationAccess(webNotificationId, authorizationHeader);
+    if (StringUtils.isBlank(username)) {
+      username = validatePushNotificationAccess(webNotificationId, authorizationHeader, true);
+    }
     return getNotification(webNotificationId, username);
   }
 
   public void updateNotificationFromPush(long webNotificationId,
                                          String action,
-                                         String authorizationHeader) throws ObjectNotFoundException,
+                                         String authorizationHeader,
+                                         String username) throws ObjectNotFoundException,
                                                                      IllegalAccessException {
-    String username = validatePushNotificationAccess(webNotificationId, authorizationHeader);
+    if (StringUtils.isBlank(username)) {
+      username = validatePushNotificationAccess(webNotificationId, authorizationHeader, true);
+    }
     updateNotification(webNotificationId, action, username);
+  }
+
+  public void reportPushDeliveryDelay(long webNotificationId,
+                                      String authorizationHeader,
+                                      String username,
+                                      long sentAt,
+                                      long receivedAt) throws IllegalAccessException, ObjectNotFoundException {
+    if (StringUtils.isBlank(username)) {
+      username = validatePushNotificationAccess(webNotificationId, authorizationHeader, false);
+    }
+    String subscriptionId = parsePushAuthorizationHeader(authorizationHeader).get(SUBSCRIPTION_ID_PARAM);
+    NotificationInfo notification = webNotificationService.getNotificationInfo(String.valueOf(webNotificationId));
+    if (notification == null) {
+      throw new ObjectNotFoundException(String.format(MSG_NOTIFICATION_NOT_FOUND, webNotificationId));
+    } else if (!StringUtils.equals(notification.getTo(), username)) {
+      throw new IllegalAccessException(String.format(MSG_NOTIFICATION_ACCESS_DENIED, webNotificationId));
+    }
+    long computedDelayMs = System.currentTimeMillis() - sentAt; // Both generated in server side, thus it's compatible rather than using the Client time in MS
+    if ((computedDelayMs / 1000) > pushNotificationExcessiveDelayThreshold) {
+      pwaNotificationStorage.recordExcessivePushDeliveryDelay(username, subscriptionId, Math.max(0, computedDelayMs));
+    }
+    Map<String, String> ownerParameters = notification.getOwnerParameter() == null ? new HashMap<>() :
+                                                                                   new HashMap<>(notification.getOwnerParameter());
+    ownerParameters.put(PWA_NOTIFICATION_PUSH_SENT_TIME, String.valueOf(sentAt));
+    ownerParameters.put(PWA_NOTIFICATION_PUSH_RECEIVED_TIME, String.valueOf(receivedAt));
+    ownerParameters.put(PWA_NOTIFICATION_PUSH_EFFECTIVE_RECEIVED_TIME, String.valueOf(System.currentTimeMillis()));
+    ownerParameters.put(PWA_NOTIFICATION_PUSH_DELAY_TIME, String.valueOf(System.currentTimeMillis() - sentAt));
+    notification.setOwnerParameter(ownerParameters);
+
+    webNotificationService.update(notification, false);
+
+    UserPushSubscription subscription = pwaSubscriptionService.getSubscription(username, subscriptionId);
+    listenerService.broadcast(PWA_NOTIFICATION_RECEIVED,
+                              subscription,
+                              notification);
+  }
+
+  public Map<String, Object> getPushDeliveryDelayStatus(String username, String subscriptionId) {
+    return pwaNotificationStorage.getPushDeliveryDelayStatus(username, subscriptionId, TimeUnit.HOURS.toMillis(1));
+  }
+
+  public void resetPushDeliveryDelay(String username, String subscriptionId) {
+    pwaNotificationStorage.resetPushDeliveryDelay(username, subscriptionId);
   }
 
   public void updateNotification(long webNotificationId, String action, String username) throws ObjectNotFoundException,
                                                                                          IllegalAccessException {
     NotificationInfo notification = webNotificationService.getNotificationInfo(String.valueOf(webNotificationId));
     if (notification == null) {
-      throw new ObjectNotFoundException(String.format("Notification with id %s doesn't exists", webNotificationId));
+      throw new ObjectNotFoundException(String.format(MSG_NOTIFICATION_NOT_FOUND, webNotificationId));
     } else if (!StringUtils.equals(notification.getTo(), username)) {
-      throw new IllegalAccessException(String.format("Notification with id %s access denied", webNotificationId));
+      throw new IllegalAccessException(String.format(MSG_NOTIFICATION_ACCESS_DENIED, webNotificationId));
     }
     if (StringUtils.equals(action, PWA_NOTIFICATION_MARK_READ_USER_ACTION)) {
       webNotificationService.markRead(String.valueOf(webNotificationId));
@@ -331,9 +396,12 @@ public class PwaNotificationService {
                                                                   params.get(EVENT_NOTIFICATION_ID_PARAM_NAME),
                                                                   params.get(EVENT_ACTION_PARAM_NAME));
                             if (StringUtils.equals(notificationType, WEB_NOTIFICATION)) {
+                              long sentAt = System.currentTimeMillis();
                               String pushToken = generatePushNotificationAccessToken(params, subscription);
                               if (StringUtils.isNotBlank(pushToken)) {
-                                payload += ":%s:%s".formatted(pushToken, subscription.getId());
+                                payload += ":%s:%s:%s".formatted(pushToken, subscription.getId(), sentAt);
+                              } else {
+                                payload += ":::%s".formatted(sentAt);
                               }
                             }
                             HttpResponse httpResponse = sendPushMessage(subscription, payload.getBytes());
@@ -408,7 +476,9 @@ public class PwaNotificationService {
     return pwaNotificationTokenService.createToken(username, notificationId, subscription.getId());
   }
 
-  private String validatePushNotificationAccess(long notificationId, String authorizationHeader) throws IllegalAccessException {
+  private String validatePushNotificationAccess(long notificationId,
+                                                String authorizationHeader,
+                                                boolean consume) throws IllegalAccessException {
     Map<String, String> parameters = parsePushAuthorizationHeader(authorizationHeader);
     String token = parameters.get(PUSH_TOKEN_PARAM);
     String subscriptionId = parameters.get(SUBSCRIPTION_ID_PARAM);
@@ -440,9 +510,11 @@ public class PwaNotificationService {
     if (!MessageDigest.isEqual(expectedProof.getBytes(StandardCharsets.UTF_8), proof.getBytes(StandardCharsets.UTF_8))) {
       throw new IllegalAccessException("Invalid push authorization proof");
     }
-    String consumedUsername = pwaNotificationTokenService.consumeToken(token, notificationId, subscriptionId);
-    if (!StringUtils.equals(username, consumedUsername)) {
-      throw new IllegalAccessException("Push notification token already consumed");
+    if (consume) {
+      String consumedUsername = pwaNotificationTokenService.consumeToken(token, notificationId, subscriptionId);
+      if (!StringUtils.equals(username, consumedUsername)) {
+        throw new IllegalAccessException("Push notification token already consumed");
+      }
     }
     return username;
   }
