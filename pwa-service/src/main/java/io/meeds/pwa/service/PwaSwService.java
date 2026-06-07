@@ -45,6 +45,8 @@ import org.exoplatform.portal.application.ResourceRequestFilter;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
 
+import lombok.Getter;
+import lombok.Setter;
 import lombok.SneakyThrows;
 
 @Service
@@ -76,16 +78,10 @@ public class PwaSwService {
   @Value("${pwa.service.worker.extension.path:../../js/service-worker-extension.js}")
   private String                         serviceWorkerExtensionPath;
 
+  @Getter
+  @Setter
   @Value("${pwa.offline.enabled:false}")
   private boolean                        offlineEnabled;
-
-  public boolean isOfflineEnabled() {
-    return offlineEnabled;
-  }
-
-  public void setOfflineEnabled(boolean offlineEnabled) {
-    this.offlineEnabled = offlineEnabled;
-  }
 
   public String getContent() {
     if (serviceWorkerContent.get() == null || DEVELOPPING) {
