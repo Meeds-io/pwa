@@ -23,14 +23,22 @@ import static io.meeds.pwa.service.PwaNotificationService.EVENT_NOTIFICATION_ID_
 import static io.meeds.pwa.service.PwaNotificationService.EVENT_USERNAME_PARAM_NAME;
 import static io.meeds.pwa.service.PwaNotificationService.PWA_NOTIFICATION_MARK_READ_USER_ACTION;
 import static io.meeds.pwa.service.PwaNotificationService.PWA_NOTIFICATION_OPEN_UI_ACTION;
+import static io.meeds.pwa.service.PwaNotificationService.PWA_NOTIFICATION_PUSH_DELAY_TIME;
+import static io.meeds.pwa.service.PwaNotificationService.PWA_NOTIFICATION_PUSH_EFFECTIVE_RECEIVED_TIME;
+import static io.meeds.pwa.service.PwaNotificationService.PWA_NOTIFICATION_PUSH_RECEIVED_TIME;
+import static io.meeds.pwa.service.PwaNotificationService.PWA_NOTIFICATION_PUSH_SENT_TIME;
+import static io.meeds.pwa.service.PwaNotificationService.PWA_NOTIFICATION_RECEIVED;
 import static io.meeds.pwa.service.PwaNotificationService.WEB_NOTIFICATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.longThat;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -79,13 +87,16 @@ import io.meeds.pwa.storage.PwaNotificationStorage;
 import lombok.SneakyThrows;
 import nl.martijndwars.webpush.Notification;
 import nl.martijndwars.webpush.PushService;
-
 @SpringBootTest(classes = {
   PwaNotificationService.class,
 })
 public class PwaNotificationServiceTest {
 
-  private static final String          SUBSCRIPTION_ID       = "subscriptionId";
+  private static final String          DELAY_MS_KEY          = "delayMs";
+
+  private static final String          SUBSCRIPTION_ID_KEY   = "subscriptionId";
+
+  private static final String          SUBSCRIPTION_ID       = "58269855";
 
   private static final String          SUBSCRIPTION_ENDPOINT = "http://localhost/endpoint";
 
@@ -192,18 +203,36 @@ public class PwaNotificationServiceTest {
     when(pwaSubscriptionService.getSubscription(TEST_USER, SUBSCRIPTION_ID)).thenReturn(userPushSubscription);
     when(defaultPwaNotificationPlugin.process(eq(notification), any())).thenReturn(notificationMessage);
 
-    PwaNotificationMessage result = pwaNotificationService.getNotificationFromPush(NOTIFICATION_ID, authorizationHeader);
+    PwaNotificationMessage result = pwaNotificationService.getNotificationFromPush(NOTIFICATION_ID,
+                                                                                   authorizationHeader,
+                                                                                   null);
 
     assertEquals(notificationMessage, result);
     verify(defaultPwaNotificationPlugin).process(eq(notification), any());
   }
 
   @Test
+  public void getNotificationFromPushWithAuthenticatedUser() throws Exception { // NOSONAR
+    mockWebNotification();
+    mockUserLanguage();
+    when(defaultPwaNotificationPlugin.process(eq(notification), any())).thenReturn(notificationMessage);
+
+    PwaNotificationMessage result = pwaNotificationService.getNotificationFromPush(NOTIFICATION_ID,
+                                                                                   null,
+                                                                                   TEST_USER);
+
+    assertEquals(notificationMessage, result);
+    verify(pwaNotificationTokenService, never()).validateToken(any(), eq(NOTIFICATION_ID), any());
+    verify(pwaNotificationTokenService, never()).consumeToken(any(), eq(NOTIFICATION_ID), any());
+  }
+
+  @Test
   public void getNotificationFromPushWhenInvalidAuthorization() throws Exception { // NOSONAR
-    assertThrows(IllegalAccessException.class, () -> pwaNotificationService.getNotificationFromPush(NOTIFICATION_ID, null));
+    assertThrows(IllegalAccessException.class, () -> pwaNotificationService.getNotificationFromPush(NOTIFICATION_ID, null, null));
     assertThrows(IllegalAccessException.class,
                  () -> pwaNotificationService.getNotificationFromPush(NOTIFICATION_ID,
-                                                                      PUSH_AUTH_SCHEME + " token=\"unknown\""));
+                                                                      PUSH_AUTH_SCHEME + " token=\"unknown\"",
+                                                                      null));
 
     String[] payloadParts = createPushNotificationAndGetPayloadParts(true);
     String token = payloadParts[3];
@@ -217,12 +246,14 @@ public class PwaNotificationServiceTest {
                                                                       buildAuthorizationHeader(token,
                                                                                                SUBSCRIPTION_ID,
                                                                                                timestamp,
-                                                                                               "invalidProof")));
+                                                                                               "invalidProof"),
+                                                                      null));
     assertThrows(IllegalAccessException.class,
                  () -> pwaNotificationService.getNotificationFromPush(NOTIFICATION_ID + 1,
                                                                       buildAuthorizationHeader(token,
                                                                                                SUBSCRIPTION_ID,
-                                                                                               timestamp)));
+                                                                                               timestamp),
+                                                                      null));
   }
 
   @Test
@@ -236,9 +267,84 @@ public class PwaNotificationServiceTest {
 
     pwaNotificationService.updateNotificationFromPush(NOTIFICATION_ID,
                                                       PWA_NOTIFICATION_MARK_READ_USER_ACTION,
-                                                      authorizationHeader);
+                                                      authorizationHeader,
+                                                      null);
 
     verify(webNotificationService).markRead(String.valueOf(NOTIFICATION_ID));
+  }
+
+  @Test
+  public void updateNotificationFromPushWithAuthenticatedUser() throws Exception { // NOSONAR
+    mockWebNotification();
+
+    pwaNotificationService.updateNotificationFromPush(NOTIFICATION_ID,
+                                                      PWA_NOTIFICATION_MARK_READ_USER_ACTION,
+                                                      null,
+                                                      TEST_USER);
+
+    verify(webNotificationService).markRead(String.valueOf(NOTIFICATION_ID));
+    verify(pwaNotificationTokenService, never()).validateToken(any(), eq(NOTIFICATION_ID), any());
+    verify(pwaNotificationTokenService, never()).consumeToken(any(), eq(NOTIFICATION_ID), any());
+  }
+
+  @Test
+  public void reportPushDeliveryDelay() throws Exception { // NOSONAR
+    mockWebNotification();
+    mockSubscription(true);
+    when(pwaNotificationTokenService.validateToken(PUSH_ACCESS_TOKEN, NOTIFICATION_ID, SUBSCRIPTION_ID)).thenReturn(TEST_USER);
+    when(notification.getOwnerParameter()).thenReturn(null);
+    long sentAt = System.currentTimeMillis() - 60000;
+    long receivedAt = sentAt + 60000;
+    String authorizationHeader = buildAuthorizationHeader(PUSH_ACCESS_TOKEN, SUBSCRIPTION_ID, System.currentTimeMillis());
+
+    pwaNotificationService.reportPushDeliveryDelay(NOTIFICATION_ID,
+                                                   authorizationHeader,
+                                                   null,
+                                                   sentAt,
+                                                   receivedAt);
+
+    verify(pwaNotificationTokenService).validateToken(PUSH_ACCESS_TOKEN, NOTIFICATION_ID, SUBSCRIPTION_ID);
+    verify(pwaNotificationTokenService, never()).consumeToken(PUSH_ACCESS_TOKEN, NOTIFICATION_ID, SUBSCRIPTION_ID);
+    verify(pwaNotificationStorage).recordExcessivePushDeliveryDelay(eq(TEST_USER), eq(SUBSCRIPTION_ID), longThat(delay -> delay >= 30000l));
+    verify(notification).setOwnerParameter(argThat(params -> params.containsKey(PWA_NOTIFICATION_PUSH_SENT_TIME)
+                                                             && params.containsKey(PWA_NOTIFICATION_PUSH_RECEIVED_TIME)
+                                                             && params.containsKey(PWA_NOTIFICATION_PUSH_EFFECTIVE_RECEIVED_TIME)
+                                                             && params.containsKey(PWA_NOTIFICATION_PUSH_DELAY_TIME)));
+    verify(webNotificationService).update(notification, false);
+    verify(listenerService).broadcast(PWA_NOTIFICATION_RECEIVED, userPushSubscription, notification);
+  }
+
+  @Test
+  public void reportPushDeliveryDelayWithAuthenticatedUser() throws Exception { // NOSONAR
+    mockWebNotification();
+    mockSubscription(true);
+    when(notification.getOwnerParameter()).thenReturn(new HashMap<>());
+    long sentAt = System.currentTimeMillis() - 60000;
+    long receivedAt = sentAt + 60000;
+    String authorizationHeader = buildAuthorizationHeader(PUSH_ACCESS_TOKEN, SUBSCRIPTION_ID, System.currentTimeMillis());
+
+    pwaNotificationService.reportPushDeliveryDelay(NOTIFICATION_ID,
+                                                   authorizationHeader,
+                                                   TEST_USER,
+                                                   sentAt,
+                                                   receivedAt);
+
+    verify(pwaNotificationTokenService, never()).validateToken(any(), eq(NOTIFICATION_ID), any());
+    verify(pwaNotificationTokenService, never()).consumeToken(any(), eq(NOTIFICATION_ID), any());
+    verify(pwaNotificationStorage).recordExcessivePushDeliveryDelay(eq(TEST_USER), eq(SUBSCRIPTION_ID), anyLong());
+    verify(webNotificationService).update(notification, false);
+    verify(listenerService).broadcast(PWA_NOTIFICATION_RECEIVED, userPushSubscription, notification);
+  }
+
+  @Test
+  public void getAndResetPushDeliveryDelayStatus() {
+    Map<String, Object> status = Map.of(DELAY_MS_KEY, 60000L, SUBSCRIPTION_ID_KEY, SUBSCRIPTION_ID);
+    when(pwaNotificationStorage.getPushDeliveryDelayStatus(TEST_USER, SUBSCRIPTION_ID, 3600000L)).thenReturn(status);
+
+    assertEquals(status, pwaNotificationService.getPushDeliveryDelayStatus(TEST_USER, SUBSCRIPTION_ID));
+
+    pwaNotificationService.resetPushDeliveryDelay(TEST_USER, SUBSCRIPTION_ID);
+    verify(pwaNotificationStorage).resetPushDeliveryDelay(TEST_USER, SUBSCRIPTION_ID);
   }
 
   @Test
@@ -282,8 +388,10 @@ public class PwaNotificationServiceTest {
     assertNotNull(future);
     assertEquals(0, (int) future.get());
     verify(pwaSubscriptionService, never()).deleteSubscription(SUBSCRIPTION_ID, TEST_USER, false);
-    verify(pushService).send(argThat(n -> (WEB_NOTIFICATION + ":" + NOTIFICATION_ID + ":" +
-        PWA_NOTIFICATION_OPEN_UI_ACTION).equals(new String(n.getPayload(), StandardCharsets.UTF_8))));
+    verify(pushService).send(argThat(n -> new String(n.getPayload(),
+                                                     StandardCharsets.UTF_8).startsWith("%s:%s:%s".formatted(WEB_NOTIFICATION,
+                                                                                                             NOTIFICATION_ID,
+                                                                                                             PWA_NOTIFICATION_OPEN_UI_ACTION))));
 
     when(statusLine.getStatusCode()).thenReturn(410);
     future = pwaNotificationService.create(NOTIFICATION_ID);
@@ -302,22 +410,26 @@ public class PwaNotificationServiceTest {
   public void createWhenSubscriptionHasDeviceSecretAddsPushAccessToken() throws Exception { // NOSONAR
     String[] payloadParts = createPushNotificationAndGetPayloadParts(true);
 
-    assertEquals(5, payloadParts.length);
+    assertEquals(6, payloadParts.length);
     assertEquals(WEB_NOTIFICATION, payloadParts[0]);
     assertEquals(String.valueOf(NOTIFICATION_ID), payloadParts[1]);
     assertEquals(PWA_NOTIFICATION_OPEN_UI_ACTION, payloadParts[2]);
     assertEquals(PUSH_ACCESS_TOKEN, payloadParts[3]);
     assertEquals(SUBSCRIPTION_ID, payloadParts[4]);
+    assertFalse(payloadParts[5].isBlank());
   }
 
   @Test
   public void createWhenSubscriptionHasNoDeviceSecretKeepsLegacyPayload() throws Exception { // NOSONAR
     String[] payloadParts = createPushNotificationAndGetPayloadParts(false);
 
-    assertEquals(3, payloadParts.length);
+    assertEquals(6, payloadParts.length);
     assertEquals(WEB_NOTIFICATION, payloadParts[0]);
     assertEquals(String.valueOf(NOTIFICATION_ID), payloadParts[1]);
     assertEquals(PWA_NOTIFICATION_OPEN_UI_ACTION, payloadParts[2]);
+    assertEquals("", payloadParts[3]);
+    assertEquals("", payloadParts[4]);
+    assertFalse(payloadParts[5].isBlank());
   }
 
   @Test
@@ -353,7 +465,7 @@ public class PwaNotificationServiceTest {
     assertEquals(1, (int) future.get());
     ArgumentCaptor<Notification> notificationCaptor = ArgumentCaptor.forClass(Notification.class);
     verify(pushService).send(notificationCaptor.capture());
-    return new String(notificationCaptor.getValue().getPayload(), StandardCharsets.UTF_8).split(":");
+    return new String(notificationCaptor.getValue().getPayload(), StandardCharsets.UTF_8).split(":", -1);
   }
 
   private void mockSubscription(boolean withDeviceSecret) throws Exception { // NOSONAR
