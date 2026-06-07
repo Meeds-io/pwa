@@ -81,6 +81,73 @@
     if (navigator?.serviceWorker && eXo?.env?.portal?.language) {
       localStorage.setItem('user-lang', eXo.env.portal.language);
     }
+    if (eXo?.env?.portal?.userName && eXo?.env?.portal?.pwaEnabled) {
+      window.setTimeout(checkPushDeliveryDelayStatus, 2000);
+    }
+  }
+
+  async function checkPushDeliveryDelayStatus() {
+    if (window.localStorage.getItem(`pwa.notification.pushNotificationExcessiveDelaySuggested-${eXo.env.portal.userName}`) === 'true') {
+      return;
+    }
+    try {
+      const status = await getPushDeliveryDelayStatus();
+      if (status?.delayMs) {
+        displayPushDeliveryDelayAlert(status);
+      }
+    } catch (e) {
+      console.error('Error checking push delivery delay status', e);
+    }
+  }
+
+  async function getPushDeliveryDelayStatus() {
+    const subscriptionId = getSubscriptionId();
+    if (!subscriptionId) {
+      return null;
+    } else {
+      const status = await fetch(`/pwa/rest/notifications/push/delivery-delay/${subscriptionId}`, {
+        method: 'GET',
+        credentials: 'include',
+      }).then(resp => resp?.ok && resp?.json());
+      return status;
+    }
+  }
+
+  async function resetPushDeliveryDelayStatus() {
+    const subscriptionId = getSubscriptionId();
+    if (!subscriptionId) {
+      return;
+    }
+    try {
+      await fetch(`/pwa/rest/notifications/push/delivery-delay/${subscriptionId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+    } catch (e) {
+      console.error('Error resetting push delivery delay status', e);
+    }
+  }
+
+  async function displayPushDeliveryDelayAlert(status) {
+    const delayMinutes = status?.delayMs && Math.max(1, Math.round(status.delayMs / 60000));
+    const i18n = await exoi18n.loadLanguageAsync(eXo.env.portal.language, `/social/i18n/locale.portlet.Portlets?lang=${eXo.env.portal.language}`);
+    document.dispatchEvent(new CustomEvent('alert-message', {detail:{
+      useHtml: true,
+      alertMessage: delayMinutes ?
+        i18n.messages?.[eXo.env.portal.language]?.['pwa.feature.pushNotificationExcessiveDelayInMinutes'].replace('{0}', `<strong>${new Intl.NumberFormat(eXo.env.portal.language, {
+          style: 'decimal',
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        }).format(delayMinutes)}</strong>`):
+        i18n.messages?.[eXo.env.portal.language]?.['pwa.feature.pushNotificationExcessiveDelay'],
+      alertLinkText: i18n.messages?.[eXo.env.portal.language]?.['pwa.feature.pushNotificationExcessiveDelay.confirmButton'],
+      alertType: 'warning',
+      alertTimeout: 3600000,
+      alertDismissible: false,
+      alertLinkCallback: async () => {
+        window.require(['PORTLET/pwa/UserSettingPwa'], app => app.openPushNotificationDelayHelpDrawer());
+      },
+    }}));
   }
 
   async function initSubscription() {
@@ -183,7 +250,10 @@
           pushDeviceSecret,
         }),
       })
-        .then(() => window.localStorage.setItem(`pwa.notification.endpoint-${eXo.env.portal.userName}`, subscription.endpoint));
+        .then(() => {
+          window.localStorage.setItem(`pwa.notification.endpoint-${eXo.env.portal.userName}`, subscription.endpoint);
+          setPushVersion();
+        });
     }
   }
 
@@ -326,5 +396,8 @@
 
   return {
     init,
+    getSubscriptionId,
+    getPushDeliveryDelayStatus,
+    resetPushDeliveryDelayStatus,
   };
 })(exoi18n);

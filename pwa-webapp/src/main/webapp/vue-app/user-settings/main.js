@@ -28,7 +28,7 @@ if (extensionRegistry) {
 }
 
 //getting language of user
-const lang = eXo && eXo.env.portal.language || 'en';
+const lang = eXo?.env?.portal?.language || 'en';
 
 //should expose the locale ressources as REST API 
 const url = `/social/i18n/locale.portlet.social.UserSettings?lang=${lang}`;
@@ -59,4 +59,43 @@ export function init() {
   }).finally(() => {
     Vue.prototype.$utils.includeExtensions('PWAUserSettings');
   });
+}
+
+export async function openPushNotificationDelayHelpDrawer() {
+  const id = 'pwa-pushNotification-delay-drawer';
+  const drawerAppElement = getDrawerAppElement(id);
+  const i18n = await exoi18n.loadLanguageAsync(lang, `/social/i18n/locale.portlet.social.UserSettings?lang=${eXo.env.portal.language}`);
+  new Vue({
+    i18n,
+    vuetify: Vue.prototype.vuetifyOptions,
+    template: `
+      <v-app id="${id}">
+        <user-setting-pwa-push-delivery-help-drawer
+          ref="drawer"
+          allow-hide />
+      </v-app>
+    `,
+    mounted() {
+      document.dispatchEvent(new CustomEvent('hideTopBarLoading'));
+      this.$refs.drawer.open();
+      document.dispatchEvent(new CustomEvent('close-alert-message'));
+    },
+  }).$mount(drawerAppElement);
+}
+
+function getDrawerAppElement(id) {
+  let drawerAppElement = document.querySelector(`#${id}`);
+  if (!drawerAppElement) {
+    let parentElement = document.querySelector('#vuetify-apps') || document.querySelector('#body-end-container');
+    if (!parentElement) {
+      parentElement = document.createElement('div');
+      parentElement.classList.add('VuetifyApp');
+      document.body.appendChild(parentElement);
+    }
+    drawerAppElement = document.createElement('div');
+    drawerAppElement.id = id;
+    drawerAppElement.class = 'v-application v-application--is-ltr transparent theme--light';
+    parentElement.appendChild(drawerAppElement);
+  }
+  return drawerAppElement;
 }
