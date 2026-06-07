@@ -153,8 +153,12 @@
   async function initSubscription() {
     try {
       let registration = await navigator.serviceWorker.getRegistration();
+      if (isLegacyServiceWorkerRegistration(registration)) {
+        await registration.unregister();
+        registration = null;
+      }
       if (!registration) {
-        registration = await navigator.serviceWorker.register('/pwa/rest/service-worker',{
+        registration = await navigator.serviceWorker.register('/service-worker.js',{
             scope: '/',
         });
       }
@@ -392,6 +396,14 @@
         reject(transaction.error);
       };
     });
+  }
+
+  function isLegacyServiceWorkerRegistration(registration) {
+    return registration && [
+      registration?.active?.scriptURL,
+      registration?.waiting?.scriptURL,
+      registration?.installing?.scriptURL,
+    ].some(scriptUrl => scriptUrl === new URL('/pwa/rest/service-worker', window.location.origin).href);
   }
 
   return {
