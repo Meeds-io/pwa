@@ -73,13 +73,15 @@
                     flat>
                     <v-icon
                       v-if="pushNotificationDeliveryExcessiveDelay"
-                      class="warning--text me-2"
+                      color="info"
+                      class="me-2"
                       size="18">
-                      fa-exclamation-triangle
+                      fa-info-circle
                     </v-icon>
                     <v-icon
                       v-else
-                      class="success--text me-2"
+                      class="me-2"
+                      color="success"
                       size="18">
                       fa-check
                     </v-icon>

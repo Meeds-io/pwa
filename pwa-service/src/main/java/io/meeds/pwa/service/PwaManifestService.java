@@ -19,19 +19,23 @@
  */
 package io.meeds.pwa.service;
 
-import java.awt.*;
+import java.awt.Color;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+
+import javax.imageio.ImageIO;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.IOUtils;
@@ -78,8 +82,6 @@ import io.meeds.social.util.JsonUtils;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.SneakyThrows;
-
-import javax.imageio.ImageIO;
 
 @Service
 public class PwaManifestService {
@@ -369,7 +371,7 @@ public class PwaManifestService {
       throw new IllegalArgumentException("Cannot update " + fileName +
           ", the object must contain the image data or an upload id");
     } else {
-      try {
+      try (inputStream) {
         int size = inputStream.available();
         FileItem fileItem = new FileItem(0l,
                                          fileName,
@@ -385,8 +387,6 @@ public class PwaManifestService {
                            Scope.GLOBAL,
                            settingKey,
                            SettingValue.create(String.valueOf(fileItem.getFileInfo().getId())));
-      } finally {
-        inputStream.close();
       }
     }
   }
@@ -502,7 +502,18 @@ public class PwaManifestService {
   }
 
   private byte[] scaleImage(byte[] image, int width, int height, boolean fitExact, boolean ultraQuality) throws Exception {
-    return imageResizeService.scaleImage(image, width, height, true, true);
+    byte[] bytes = imageResizeService.scaleImage(image, width, height, true, true);
+    try {
+      // Ensure to have a png thumbnail file
+      bytes = convertToPng(bytes);
+    } catch (IOException e) {
+      if (LOG.isDebugEnabled()) {
+        LOG.warn("Error converting image to png. Use original content", e);
+      } else {
+        LOG.warn("Error converting image to png. Use original content. Error: {}", e.getMessage());
+      }
+    }
+    return bytes;
   }
 
   private String getPropertyValue(String key) {
@@ -626,5 +637,33 @@ public class PwaManifestService {
       return baos.toByteArray();
     }
 
+  }
+
+  private byte[] convertToPng(byte[] inputBytes) throws IOException {
+    BufferedImage input;
+
+    try (ByteArrayInputStream bais = new ByteArrayInputStream(inputBytes)) {
+      input = ImageIO.read(bais);
+    }
+
+    if (input == null) {
+      throw new IllegalArgumentException("Not a valid image");
+    }
+
+    BufferedImage output = new BufferedImage(input.getWidth(),
+                                             input.getHeight(),
+                                             BufferedImage.TYPE_INT_ARGB);
+
+    Graphics2D graphics = output.createGraphics();
+    try {
+      graphics.drawImage(input, 0, 0, null);
+    } finally {
+      graphics.dispose();
+    }
+
+    try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+      ImageIO.write(output, "png", baos);
+      return baos.toByteArray();
+    }
   }
 }

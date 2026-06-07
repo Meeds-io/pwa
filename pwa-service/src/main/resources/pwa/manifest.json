@@ -16,6 +16,11 @@
     "sizes": "512x512",
     "type": "image/png",
     "purpose": "maskable"
+  },{
+    "src": "$largeIconPath/512.png",
+    "sizes": "512x512",
+    "type": "image/png",
+    "purpose": "any"
   }, {
     "src": "$largeIconPath/192.png",
     "sizes": "192x192",
@@ -42,14 +47,10 @@
   "launch_handler": {
     "client_mode": ["navigate-new", "auto"]
   },
-  "scope_extensions": [
-    {
-      "origin": "$fullDomainUrl"
-    }
-  ],
   "handle_links": "preferred",
   "screenshots": [],
-  "categories": [],
+  "categories": ["business", "productivity", "social", "utilities"],
+  "orientation": "any",
   "related_applications": [{
     "platform": "webapp",
     "url": "$fullDomainUrl/pwa/rest/manifest"

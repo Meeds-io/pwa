@@ -2,13 +2,17 @@ const offlineVersion = '@assets-version@';
 const cacheName = `offline`;
 const lang = `@lang@`;
 const offlineModeEnabled = @pwa.offline.enabled@;
+const startUrl = '/pwa/html/pwaLauncher.html';
 const offlineUrl = `/pwa/html/offline.html?v=${offlineVersion}`;
 const manifestUrl = '/pwa/rest/manifest';
-const serviceWorkerUrl = '/pwa/rest/service-worker';
+const serviceWorkerUrl = '/service-worker.js';
+const serviceWorkerLegacyUrl = '/pwa/rest/service-worker';
 const offlineAssets = [
+  startUrl,
   offlineUrl,
   manifestUrl,
   serviceWorkerUrl,
+  serviceWorkerLegacyUrl,
   '/portal/rest/v1/platform/branding?type=json',
   '/portal/rest/v1/platform/branding/logo',
   '/portal/rest/v1/platform/branding/favicon',
