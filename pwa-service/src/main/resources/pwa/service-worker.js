@@ -179,6 +179,9 @@ self.addEventListener('push', event => {
             const notificationId = params[1];
             const notificationAccessToken = params[3];
             const subscriptionId = params[4];
+            const sentAt = Number(params[5]);
+            const receivedAt = Date.now();
+            await reportPushDeliveryDelay(notificationId, notificationAccessToken, subscriptionId, sentAt, receivedAt);
             let webNotification = await getWebNotification(notificationId, notificationAccessToken, subscriptionId);
             if (!webNotification) {
               webNotification = getFallbackNotification(notificationId);
@@ -266,6 +269,30 @@ async function markAsRead(notificationId, notificationAccessToken, subscriptionI
   try {
     await refreshBadge();
   } catch(e) {
+    console.error(e);
+  }
+}
+
+
+async function reportPushDeliveryDelay(notificationId, notificationAccessToken, subscriptionId, sentAt, receivedAt) {
+  if (!sentAt || !receivedAt) {
+    return;
+  }
+  const authorizationHeader = await getPushAuthorizationHeader(notificationId, notificationAccessToken, subscriptionId);
+  if (!authorizationHeader) {
+    return;
+  }
+  try {
+    await fetch(`/pwa/rest/notifications/${notificationId}/push/delivery-delay`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Authorization': authorizationHeader,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: `sentAt=${encodeURIComponent(sentAt)}&receivedAt=${encodeURIComponent(receivedAt)}`,
+    });
+  } catch (e) {
     console.error(e);
   }
 }

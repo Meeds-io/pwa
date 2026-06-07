@@ -19,11 +19,13 @@
 import UserSettingPwa from './components/UserSettingPwa.vue';
 import UserSettingPwaHelpDrawer from './components/UserSettingPwaHelpDrawer.vue';
 import UserSettingPwaIOsHelpDrawer from './components/UserSettingPwaIOsHelpDrawer.vue';
+import UserSettingPwaPushDeliveryDrawer from './components/UserSettingPwaPushDeliveryDrawer.vue';
 
 const components = {
   'user-setting-pwa': UserSettingPwa,
   'user-setting-pwa-help-drawer': UserSettingPwaHelpDrawer,
   'user-setting-pwa-ios-help-drawer': UserSettingPwaIOsHelpDrawer,
+  'user-setting-pwa-push-delivery-help-drawer': UserSettingPwaPushDeliveryDrawer,
 };
 
 for (const key in components) {
