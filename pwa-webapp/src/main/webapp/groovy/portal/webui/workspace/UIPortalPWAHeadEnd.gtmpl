@@ -11,5 +11,8 @@
   eXo.env.portal.pwaPushPublicKey = '<%=pwaNotificationService.getVapidPublicKeyString().replace("=", "")%>';
   <% if (_ctx.getRequestContext().getRemoteUser() != null) {
   %>window.require(["SHARED/pwa"], pwa => pwa.init());<% } %>
+  if (typeof navigator.serviceWorker !== 'undefined' && window.initPwaEnabled) {
+    navigator.serviceWorker.register('/service-worker.js')
+  }
 </script><%
 } %>

@@ -27,6 +27,7 @@ import java.util.List;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 
+import org.exoplatform.container.ExoContainerContext;
 import org.exoplatform.container.xml.InitParams;
 import org.exoplatform.container.xml.ValueParam;
 import org.exoplatform.container.xml.ValuesParam;
@@ -47,12 +48,17 @@ import io.meeds.web.security.storage.PortalTokenStorage;
  * token is deleted from the persistent store.
  */
 @Service
-public class PwaNotificationTokenService extends CookieTokenService {
+public class PwaNotificationTokenService extends CookieTokenService { // NOSONAR
 
   public static final String TOKEN_TYPE_PREFIX = "pwa-notification";
 
   public PwaNotificationTokenService(PortalTokenStorage tokenStore) {
     super(initParams(), tokenStore);
+  }
+
+  public PwaNotificationTokenService() { // Needed for Integration Tests in
+                                         // other modules
+    super(initParams(), ExoContainerContext.getService(PortalTokenStorage.class));
   }
 
   public String createToken(String username, long notificationId, String subscriptionId) {

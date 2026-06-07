@@ -19,6 +19,7 @@
 package io.meeds.pwa.rest;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -62,6 +63,7 @@ public class ServiceWorkerRest {
                              .eTag(String.valueOf(content.hashCode()))
                              .header("Service-Worker-Allowed", "/")
                              .contentType(MediaType.valueOf("text/javascript"))
+                             .cacheControl(CacheControl.noCache())
                              .body(content);
       }
     }
