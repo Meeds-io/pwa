@@ -57,14 +57,37 @@
           </v-list-item-content>
           <v-list-item-action class="mt-0 mb-auto">
             <template v-if="installed">
-              <v-card
+              <v-tooltip
                 v-if="notificationPermission === 'granted'"
-                class="border-color py-2 px-3"
-                disabled
-                flat>
-                <v-icon class="success--text me-2" size="18">fa-check</v-icon>
-                {{ $t('UserSettings.pwa.notification.granted') }}
-              </v-card>
+                :disabled="!pushNotificationDeliveryExcessiveDelay"
+                bottom>
+                <template #activator="{on, attrs}">
+                  <v-card
+                    v-on="pushNotificationDeliveryExcessiveDelay ? {
+                      ...on,
+                      click: openPushNotificationDeliveryDrawer
+                    } : null"
+                    v-bind="pushNotificationDeliveryExcessiveDelay ? attrs : null"
+                    :disabled="!pushNotificationDeliveryExcessiveDelay"
+                    class="border-color py-2 px-3"
+                    flat>
+                    <v-icon
+                      v-if="pushNotificationDeliveryExcessiveDelay"
+                      class="warning--text me-2"
+                      size="18">
+                      fa-exclamation-triangle
+                    </v-icon>
+                    <v-icon
+                      v-else
+                      class="success--text me-2"
+                      size="18">
+                      fa-check
+                    </v-icon>
+                    {{ $t('UserSettings.pwa.notification.granted') }}
+                  </v-card>
+                </template>
+                <span>{{ $t('UserSettings.pwa.notification.deliveryStatus.tooltip') }}</span>
+              </v-tooltip>
               <v-card
                 v-else-if="notificationPermission === 'denied'"
                 class="border-color py-2 px-3"
@@ -117,6 +140,10 @@
           class=" d-flex flex-column" />
       </v-list>
     </v-card>
+    <user-setting-pwa-push-delivery-help-drawer
+      v-if="pushNotificationDeliveryExcessiveDelay"
+      ref="pwaPushDeliveryHelpDrawer"
+      @reset="checkPushNotificationDeliveryStatus" />
     <user-setting-pwa-ios-help-drawer
       v-if="isIOs"
       ref="pwaSupportHelpDrawer" />
@@ -137,6 +164,7 @@ export default {
     isIOs: false,
     loading: false,
     permissionLoading: false,
+    pushNotificationDeliveryExcessiveDelay: false,
   }),
   computed: {
     isMobile() {
@@ -184,6 +212,19 @@ export default {
       if (window.deferredPwaPromptTimeout) {
         window.clearTimeout(window.deferredPwaPromptTimeout);
       }
+      if (this.installed
+          && this.notificationPermission === 'granted'
+          && pwa.getSubscriptionId()) {
+        this.checkPushNotificationDeliveryStatus();
+      }
+    },
+    async checkPushNotificationDeliveryStatus() {
+      const pushNotificationDeliveryStatus = await pwa.getPushDeliveryDelayStatus();
+      if (pushNotificationDeliveryStatus?.delayMs) {
+        this.pushNotificationDeliveryExcessiveDelay = true;
+      } else {
+        this.pushNotificationDeliveryExcessiveDelay = false;
+      }
     },
     async installPwa() {
       if (this.pwaSupported) {
@@ -202,6 +243,9 @@ export default {
       } else {
         this.$refs.pwaSupportHelpDrawer.open();
       }
+    },
+    openPushNotificationDeliveryDrawer() {
+      this.$refs.pwaPushDeliveryHelpDrawer.open();
     },
     isIOsAgent() {
       const traditionalTouch = /iPhone|iPad|iPod/.test(navigator.userAgent);
