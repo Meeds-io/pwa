@@ -63,6 +63,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import org.exoplatform.commons.api.notification.model.NotificationInfo;
@@ -89,6 +90,9 @@ import nl.martijndwars.webpush.Notification;
 import nl.martijndwars.webpush.PushService;
 @SpringBootTest(classes = {
   PwaNotificationService.class,
+})
+@TestPropertySource(properties = {
+  "pwa.notifications.push.token.ttl.excessiveDelayThreshold=30",
 })
 public class PwaNotificationServiceTest {
 

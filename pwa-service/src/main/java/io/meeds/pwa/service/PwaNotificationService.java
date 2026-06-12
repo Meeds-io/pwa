@@ -189,7 +189,7 @@ public class PwaNotificationService {
   @Value("${pwa.notifications.push.token.ttl.seconds:28800}") // 8hours
   private int                          pushTokenTtlSeconds;
 
-  @Value("${pwa.notifications.push.token.ttl.excessiveDelayThreshold:30}") // 30sec
+  @Value("${pwa.notifications.push.token.ttl.excessiveDelayThreshold:3600}") // 1 hour
   private int                          pushNotificationExcessiveDelayThreshold;
 
   @Autowired
