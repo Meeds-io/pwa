@@ -274,11 +274,10 @@ public class PwaNotificationService {
     ownerParameters.put(PWA_NOTIFICATION_PUSH_RECEIVED_TIME, String.valueOf(receivedAt));
     ownerParameters.put(PWA_NOTIFICATION_PUSH_EFFECTIVE_RECEIVED_TIME, String.valueOf(System.currentTimeMillis()));
     ownerParameters.put(PWA_NOTIFICATION_PUSH_DELAY_TIME, String.valueOf(System.currentTimeMillis() - sentAt));
-    notification.setOwnerParameter(ownerParameters);
-
-    webNotificationService.update(notification, false);
+    webNotificationService.updateNotificationParameters(notification.getId(), ownerParameters);
 
     UserPushSubscription subscription = pwaSubscriptionService.getSubscription(username, subscriptionId);
+    notification.setOwnerParameter(ownerParameters);
     listenerService.broadcast(PWA_NOTIFICATION_RECEIVED,
                               subscription,
                               notification);
