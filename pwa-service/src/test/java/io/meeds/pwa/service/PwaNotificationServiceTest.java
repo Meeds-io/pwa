@@ -88,6 +88,7 @@ import io.meeds.pwa.storage.PwaNotificationStorage;
 import lombok.SneakyThrows;
 import nl.martijndwars.webpush.Notification;
 import nl.martijndwars.webpush.PushService;
+
 @SpringBootTest(classes = {
   PwaNotificationService.class,
 })
@@ -309,12 +310,18 @@ public class PwaNotificationServiceTest {
 
     verify(pwaNotificationTokenService).validateToken(PUSH_ACCESS_TOKEN, NOTIFICATION_ID, SUBSCRIPTION_ID);
     verify(pwaNotificationTokenService, never()).consumeToken(PUSH_ACCESS_TOKEN, NOTIFICATION_ID, SUBSCRIPTION_ID);
-    verify(pwaNotificationStorage).recordExcessivePushDeliveryDelay(eq(TEST_USER), eq(SUBSCRIPTION_ID), longThat(delay -> delay >= 30000l));
+    verify(pwaNotificationStorage).recordExcessivePushDeliveryDelay(eq(TEST_USER),
+                                                                    eq(SUBSCRIPTION_ID),
+                                                                    longThat(delay -> delay >= 30000l));
     verify(notification).setOwnerParameter(argThat(params -> params.containsKey(PWA_NOTIFICATION_PUSH_SENT_TIME)
                                                              && params.containsKey(PWA_NOTIFICATION_PUSH_RECEIVED_TIME)
                                                              && params.containsKey(PWA_NOTIFICATION_PUSH_EFFECTIVE_RECEIVED_TIME)
                                                              && params.containsKey(PWA_NOTIFICATION_PUSH_DELAY_TIME)));
-    verify(webNotificationService).update(notification, false);
+    verify(webNotificationService).updateNotificationParameters(eq(String.valueOf(NOTIFICATION_ID)),
+                                                                argThat(params -> params.containsKey(PWA_NOTIFICATION_PUSH_SENT_TIME)
+                                                                                  && params.containsKey(PWA_NOTIFICATION_PUSH_RECEIVED_TIME)
+                                                                                  && params.containsKey(PWA_NOTIFICATION_PUSH_EFFECTIVE_RECEIVED_TIME)
+                                                                                  && params.containsKey(PWA_NOTIFICATION_PUSH_DELAY_TIME)));
     verify(listenerService).broadcast(PWA_NOTIFICATION_RECEIVED, userPushSubscription, notification);
   }
 
@@ -336,7 +343,7 @@ public class PwaNotificationServiceTest {
     verify(pwaNotificationTokenService, never()).validateToken(any(), eq(NOTIFICATION_ID), any());
     verify(pwaNotificationTokenService, never()).consumeToken(any(), eq(NOTIFICATION_ID), any());
     verify(pwaNotificationStorage).recordExcessivePushDeliveryDelay(eq(TEST_USER), eq(SUBSCRIPTION_ID), anyLong());
-    verify(webNotificationService).update(notification, false);
+    verify(webNotificationService).updateNotificationParameters(eq(String.valueOf(NOTIFICATION_ID)), any());
     verify(listenerService).broadcast(PWA_NOTIFICATION_RECEIVED, userPushSubscription, notification);
   }
 
