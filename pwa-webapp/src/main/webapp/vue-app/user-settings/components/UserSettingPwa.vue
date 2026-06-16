@@ -38,7 +38,6 @@
                   <v-btn
                     :aria-label="$t('UserSettings.pwa.install')"
                     :loading="loading"
-                    :disabled="disabledButton || !pwaEnabled"
                     class="btn"
                     @click.native="installPwa">
                     {{ $t('UserSettings.pwa.install') }}
@@ -162,7 +161,6 @@ export default {
     pwaEnabled: eXo.env.portal.pwaEnabled,
     pwaSupported: true,
     notificationPermission: Notification.permission,
-    disabledButton: false,
     isIOs: false,
     loading: false,
     permissionLoading: false,
@@ -229,7 +227,7 @@ export default {
       }
     },
     async installPwa() {
-      if (this.pwaSupported) {
+      if (this.pwaSupported && window.deferredPwaPrompt) {
         this.loading = true;
         try {
           await window.deferredPwaPrompt.prompt();
