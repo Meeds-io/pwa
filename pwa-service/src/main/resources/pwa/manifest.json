@@ -50,7 +50,7 @@
   "handle_links": "preferred",
   "screenshots": [],
   "categories": ["business", "productivity", "social", "utilities"],
-  "orientation": "any",
+  "orientation": "portrait",
   "related_applications": [{
     "platform": "webapp",
     "url": "$fullDomainUrl/pwa/rest/manifest"

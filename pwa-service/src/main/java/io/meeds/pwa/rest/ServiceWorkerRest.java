@@ -61,7 +61,7 @@ public class ServiceWorkerRest {
       } else {
         return ResponseEntity.ok()
                              .eTag(String.valueOf(content.hashCode()))
-                             .header("Service-Worker-Allowed", "/")
+                             .headers(h -> h.set("Service-Worker-Allowed", "/"))
                              .contentType(MediaType.valueOf("text/javascript"))
                              .cacheControl(CacheControl.noCache())
                              .body(content);
