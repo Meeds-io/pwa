@@ -50,9 +50,6 @@ public class ServiceWorkerRootWebAppFilter implements RootWebappFilterPlugin {
   public void doFilter(HttpServletRequest httpRequest,
                        HttpServletResponse httpResponse,
                        FilterChain chain) throws IOException, ServletException {
-    httpResponse.setHeader("Service-Worker-Allowed", "/");
-    httpResponse.setHeader("Cache-Control", "no-cache");
-    httpResponse.setHeader("Content-Type", "text/javascript");
     PortalContainer.getInstance()
                    .getServletContexts()
                    .stream()
