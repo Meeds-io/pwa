@@ -98,19 +98,19 @@ public class PwaNotificationListener extends BasePwaStatisticCollector implement
 
   private void addHttpResponseCode(StatisticData statisticData, HttpResponse httpResponse) {
     if (httpResponse != null && httpResponse.getStatusLine() != null) {
-      statisticData.addParameter("pwaHttpResponseCode", httpResponse.getStatusLine().getStatusCode());
+      statisticData.addLong("pwaHttpResponseCode", httpResponse.getStatusLine().getStatusCode());
     }
   }
 
   private void addNotificationId(StatisticData statisticData, Long notificationId) {
     if (notificationId != null) {
-      statisticData.addParameter("pwaNotificationId", notificationId);
+      statisticData.addKeyword("pwaNotificationId", notificationId);
     }
   }
 
   private void addNotificationAction(StatisticData statisticData, String action) {
     if (StringUtils.isNotBlank(action)) {
-      statisticData.addParameter("pwaAction", action);
+      statisticData.addKeyword("pwaAction", action);
     }
   }
 
@@ -119,7 +119,7 @@ public class PwaNotificationListener extends BasePwaStatisticCollector implement
       errorMessage = getErrorMessage(httpResponse);
     }
     if (StringUtils.isNotBlank(errorMessage)) {
-      statisticData.addParameter("pwaErrorMessage", errorMessage);
+      statisticData.addKeyword("pwaErrorMessage", errorMessage);
     }
   }
 
