@@ -69,14 +69,14 @@ public class PwaNotificationReceivedListener extends BasePwaStatisticCollector
     statisticData.setStatus(StatisticStatus.OK);
     statisticData.setDuration(Long.parseLong(notificationInfo.getOwnerParameter().get(PWA_NOTIFICATION_PUSH_DELAY_TIME)));
 
-    statisticData.addParameter("pwaNotificationId", Long.parseLong(notificationInfo.getId()));
-    statisticData.addParameter("pwaNotificationSentAt",
-                               Long.parseLong(notificationInfo.getOwnerParameter().get(PWA_NOTIFICATION_PUSH_SENT_TIME)));
-    statisticData.addParameter("pwaNotificationClientReceivedAt",
-                               Long.parseLong(notificationInfo.getOwnerParameter().get(PWA_NOTIFICATION_PUSH_RECEIVED_TIME)));
-    statisticData.addParameter("pwaNotificationServerReceivedAt",
-                               Long.parseLong(notificationInfo.getOwnerParameter()
-                                                              .get(PWA_NOTIFICATION_PUSH_EFFECTIVE_RECEIVED_TIME)));
+    statisticData.addKeyword("pwaNotificationId", Long.parseLong(notificationInfo.getId()));
+    statisticData.addLong("pwaNotificationSentAt",
+                          notificationInfo.getOwnerParameter().get(PWA_NOTIFICATION_PUSH_SENT_TIME));
+    statisticData.addLong("pwaNotificationClientReceivedAt",
+                          notificationInfo.getOwnerParameter().get(PWA_NOTIFICATION_PUSH_RECEIVED_TIME));
+    statisticData.addLong("pwaNotificationServerReceivedAt",
+                          notificationInfo.getOwnerParameter()
+                                                         .get(PWA_NOTIFICATION_PUSH_EFFECTIVE_RECEIVED_TIME));
     addStatisticData(statisticData);
   }
 
