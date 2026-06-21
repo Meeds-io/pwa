@@ -171,6 +171,16 @@ public class PwaNotificationRest {
     pwaNotificationService.resetPushDeliveryDelay(request.getRemoteUser(), subscriptionId);
   }
 
+  @GetMapping("badge")
+  @Secured("users")
+  @Operation(summary = "Get PWA badge count", description = "Get the current PWA application badge count", method = "GET")
+  @ApiResponses(value = {
+    @ApiResponse(responseCode = "200", description = "PWA badge count retrieved"),
+  })
+  public Map<String, Object> getBadge(HttpServletRequest request) {
+    return pwaNotificationService.getBadge(request.getRemoteUser());
+  }
+
   @PatchMapping(path = "{id}", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
   @Secured("users")
   @Operation(summary = "Update Web Notification specific property", description = "Update Web Notification specific property", method = "PATCH")

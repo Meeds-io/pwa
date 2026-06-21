@@ -43,6 +43,7 @@ const pushDeviceDbName = 'pwa-push-device';
 const pushDeviceStoreName = 'secrets';
 const pushDeviceSecretKeyPrefix = 'push-device-secret-';
 const pushAuthScheme = 'PWA-Notification';
+const badgeUrl = '/pwa/rest/notifications/badge';
 
 const checkCache = async () => {
   const version = await getCacheVersion();
@@ -167,6 +168,10 @@ self.addEventListener('message', event => {
       && event.data.subscriptionId
       && event.data.pushDeviceSecret) {
     event.waitUntil(setPushDeviceSecret(event.data.subscriptionId, event.data.pushDeviceSecret));
+  } else if (event?.data?.action === 'refresh-badge') {
+    event.waitUntil(refreshBadge());
+  } else if (event?.data?.action === 'set-badge-count') {
+    event.waitUntil(updateAppBadge(event.data.count));
   }
 });
 
@@ -261,7 +266,7 @@ self.addEventListener('notificationclick', event => {
 });
 
 self.addEventListener('notificationclose', event => {
-  event.waitUntil(refreshBadge);
+  event.waitUntil(refreshBadge());
 });
 
 async function markAsRead(notificationId, notificationAccessToken, subscriptionId) {
@@ -430,13 +435,33 @@ async function setPushDeviceStoreValue(key, value) {
 }
 
 async function refreshBadge() {
-  if (navigator.setAppBadge) {
-    const notifications = await self.registration.getNotifications();
-    if (notifications?.length) {
-      await navigator?.setAppBadge?.(notifications.length);
-    } else {
-      await navigator?.clearAppBadge?.();
+  if (!navigator.setAppBadge) {
+    return;
+  }
+  try {
+    const response = await fetch(badgeUrl, {
+      method: 'GET',
+      credentials: 'include',
+      cache: 'no-store',
+    });
+    if (response.ok) {
+      const badge = await response.json();
+      await updateAppBadge(badge?.total ?? badge?.count ?? 0);
     }
+  } catch (e) {
+    console.error('Error refreshing app badge', e);
+  }
+}
+
+async function updateAppBadge(count) {
+  if (!navigator.setAppBadge) {
+    return;
+  }
+  const badgeCount = Number(count || 0);
+  if (badgeCount > 0) {
+    await navigator.setAppBadge(badgeCount);
+  } else {
+    await navigator.clearAppBadge();
   }
 }
 
