@@ -231,7 +231,8 @@ self.addEventListener('notificationclick', event => {
         let matchingClient = null;
         let i = 0;
         while (!matchingClient && i < windowClients.length) {
-          if (!windowClients[i].url.replace(self.location.origin, '').includes('editor')) {
+          const url = windowClients[i].url.replace(self.location.origin, '');
+          if (!url.includes('editor') && url.startsWith('/portal')) {
             matchingClient = windowClients[i];
           } else {
             i++;
