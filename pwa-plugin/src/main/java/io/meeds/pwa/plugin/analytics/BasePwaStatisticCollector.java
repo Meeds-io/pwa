@@ -34,9 +34,9 @@ public abstract class BasePwaStatisticCollector {
     StatisticData statisticData = new StatisticData();
     statisticData.setModule("PWA");
     statisticData.setUserId(Long.parseLong(getIdentityId(username)));
-    statisticData.addParameter("pwaDeviceType", subscription.getDeviceType());
-    statisticData.addParameter("pwaSubscriptionId", subscription.getId());
-    statisticData.addParameter("pwaSubscriptionSite", getSubscriptionDomain(subscription.getEndpoint()));
+    statisticData.addKeyword("pwaDeviceType", subscription.getDeviceType());
+    statisticData.addKeyword("pwaSubscriptionId", subscription.getId());
+    statisticData.addKeyword("pwaSubscriptionSite", getSubscriptionDomain(subscription.getEndpoint()));
     return statisticData;
   }
 
