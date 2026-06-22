@@ -22,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +59,7 @@ import io.meeds.pwa.model.PwaNotificationAction;
 import io.meeds.pwa.model.PwaNotificationMessage;
 import io.meeds.pwa.model.UserPushSubscription;
 import io.meeds.pwa.plugin.DefaultPwaNotificationPlugin;
+import io.meeds.pwa.plugin.PwaBadgePlugin;
 import io.meeds.pwa.plugin.PwaNotificationPlugin;
 import io.meeds.pwa.storage.PwaNotificationStorage;
 
@@ -189,11 +191,15 @@ public class PwaNotificationService {
   @Value("${pwa.notifications.push.token.ttl.seconds:28800}") // 8hours
   private int                          pushTokenTtlSeconds;
 
-  @Value("${pwa.notifications.push.token.ttl.excessiveDelayThreshold:3600}") // 1 hour
+  // 1 hour
+  @Value("${pwa.notifications.push.token.ttl.excessiveDelayThreshold:3600}")
   private int                          pushNotificationExcessiveDelayThreshold;
 
   @Autowired
   private List<PwaNotificationPlugin>  plugins;
+
+  @Autowired(required = false)
+  private List<PwaBadgePlugin>         badgePlugins                                  = Collections.emptyList();
 
   private ScheduledExecutorService     executorService;
 
@@ -231,7 +237,7 @@ public class PwaNotificationService {
   public PwaNotificationMessage getNotificationFromPush(long webNotificationId,
                                                         String authorizationHeader,
                                                         String username) throws ObjectNotFoundException,
-                                                                                    IllegalAccessException {
+                                                                         IllegalAccessException {
     if (StringUtils.isBlank(username)) {
       username = validatePushNotificationAccess(webNotificationId, authorizationHeader, true);
     }
@@ -242,7 +248,7 @@ public class PwaNotificationService {
                                          String action,
                                          String authorizationHeader,
                                          String username) throws ObjectNotFoundException,
-                                                                     IllegalAccessException {
+                                                          IllegalAccessException {
     if (StringUtils.isBlank(username)) {
       username = validatePushNotificationAccess(webNotificationId, authorizationHeader, true);
     }
@@ -264,7 +270,10 @@ public class PwaNotificationService {
     } else if (!StringUtils.equals(notification.getTo(), username)) {
       throw new IllegalAccessException(String.format(MSG_NOTIFICATION_ACCESS_DENIED, webNotificationId));
     }
-    long computedDelayMs = System.currentTimeMillis() - sentAt; // Both generated in server side, thus it's compatible rather than using the Client time in MS
+    // @formatter:off
+    // Both generated in server side, thus it's compatible rather than using the Client time in MS
+    long computedDelayMs = System.currentTimeMillis() - sentAt;
+    // @formatter:on
     if ((computedDelayMs / 1000) > pushNotificationExcessiveDelayThreshold) {
       pwaNotificationStorage.recordExcessivePushDeliveryDelay(username, subscriptionId, Math.max(0, computedDelayMs));
     }
@@ -289,6 +298,29 @@ public class PwaNotificationService {
 
   public void resetPushDeliveryDelay(String username, String subscriptionId) {
     pwaNotificationStorage.resetPushDeliveryDelay(username, subscriptionId);
+  }
+
+  public Map<String, Object> getBadge(String username) {
+    Map<String, Integer> badges = new HashMap<>();
+    int total = 0;
+    for (PwaBadgePlugin badgePlugin : badgePlugins) {
+      try {
+        if (badgePlugin.isEnabled(username)) {
+          int count = Math.max(0, badgePlugin.getBadge(username));
+          badges.put(badgePlugin.getId(), count);
+          total += count;
+        }
+      } catch (Exception e) {
+        log.warn("Error computing PWA badge for plugin {} and user {}. Continue computing other type of badges.",
+                 badgePlugin.getId(),
+                 username,
+                 e);
+      }
+    }
+    Map<String, Object> badge = new HashMap<>();
+    badge.put("badges", badges);
+    badge.put("total", total);
+    return badge;
   }
 
   public void updateNotification(long webNotificationId, String action, String username) throws ObjectNotFoundException,
