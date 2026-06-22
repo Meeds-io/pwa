@@ -23,6 +23,8 @@
   const pushDeviceStoreName = 'secrets';
   const pushDeviceSecretKeyPrefix = 'push-device-secret-';
   const pushVersion = 'v1.0';
+  const minBadgeRefreshInterval = 60000;
+  let lastBadgeRefreshTime = 0;
 
   if (!isPwaDisplay()
     && 'onbeforeinstallprompt' in window
@@ -72,6 +74,7 @@
   });
 
   async function init() {
+    initBadgeRefreshListeners();
     if (isPwaDisplay()
       && eXo?.env?.portal?.userName
       && eXo?.env?.portal?.pwaEnabled
@@ -125,6 +128,37 @@
       });
     } catch (e) {
       console.error('Error resetting push delivery delay status', e);
+    }
+  }
+
+  function initBadgeRefreshListeners() {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        refreshAppBadgeIfStale();
+      }
+    });
+    window.addEventListener('focus', refreshAppBadgeIfStale);
+    document.addEventListener('cometdNotifEvent', event => refreshAppBadge(event?.detail?.data?.numberOnBadge));
+    document.addEventListener('pwa-refresh-badge', event => refreshAppBadge(event?.detail?.count));
+  }
+
+  function refreshAppBadgeIfStale() {
+    if (Date.now() - lastBadgeRefreshTime >= minBadgeRefreshInterval) {
+      refreshAppBadge();
+    }
+  }
+
+  async function refreshAppBadge(count) {
+    try {
+      const registration = await navigator.serviceWorker?.ready;
+      const serviceWorker = registration?.active || navigator.serviceWorker?.controller;
+      serviceWorker?.postMessage?.({
+        action: Number.isFinite(Number(count)) ? 'set-badge-count' : 'refresh-badge',
+        count,
+      });
+      lastBadgeRefreshTime = Date.now();
+    } catch (e) {
+      console.error('Error refreshing app badge', e);
     }
   }
 
@@ -411,5 +445,6 @@
     getSubscriptionId,
     getPushDeliveryDelayStatus,
     resetPushDeliveryDelayStatus,
+    refreshAppBadge,
   };
 })(exoi18n);
