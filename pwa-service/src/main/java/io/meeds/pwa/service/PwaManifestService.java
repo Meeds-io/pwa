@@ -506,7 +506,7 @@ public class PwaManifestService {
     try {
       // Ensure to have a png thumbnail file
       bytes = convertToPng(bytes);
-    } catch (IOException e) {
+    } catch (Exception e) {
       if (LOG.isDebugEnabled()) {
         LOG.warn("Error converting image to png. Use original content", e);
       } else {
