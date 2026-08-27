@@ -41,8 +41,7 @@
   "theme_color": "$themeColor",
   "display": "standalone",
   "display_override": [
-    "tabbed",
-    "window-controls-overlay"
+    "tabbed"
   ],
   "launch_handler": {
     "client_mode": ["navigate-new", "auto"]
