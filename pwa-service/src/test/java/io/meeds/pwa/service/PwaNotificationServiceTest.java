@@ -60,7 +60,6 @@ import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
@@ -154,25 +153,25 @@ public class PwaNotificationServiceTest {
   @Autowired
   private PwaNotificationService       pwaNotificationService;
 
-  @Mock
+  @MockitoBean
   private NotificationInfo             notification;
 
-  @Mock
+  @MockitoBean
   private UserProfile                  userProfile;
 
-  @Mock
+  @MockitoBean
   private UserProfileHandler           userProfileHandler;
 
-  @Mock
+  @MockitoBean
   private PwaNotificationMessage       notificationMessage;
 
-  @Mock
+  @MockitoBean
   private UserPushSubscription         userPushSubscription;
 
-  @Mock
+  @MockitoBean
   private HttpResponse                 httpResponse;
 
-  @Mock
+  @MockitoBean
   private StatusLine                   statusLine;
 
   @Test
