@@ -24,6 +24,8 @@ import java.security.NoSuchProviderException;
 import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.bouncycastle.jce.ECNamedCurveTable;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
@@ -47,6 +49,25 @@ public class UserPushSubscription {
   private String deviceType;
 
   private String pushDeviceSecret;
+
+  /**
+   * Per-device settings of direct-notification kinds (e.g. "chat"), keyed by
+   * kind. Absent entry = enabled with the caller's default delay. Persisted
+   * with the subscription JSON; a value sent by the client subscribe call is
+   * discarded (see PwaSubscriptionService#createSubscription).
+   */
+  private Map<String, DeviceNotificationSetting> notificationSettings;
+
+  public DeviceNotificationSetting getNotificationSetting(String notificationKind) {
+    return notificationSettings == null || notificationKind == null ? null : notificationSettings.get(notificationKind);
+  }
+
+  public void setNotificationSetting(String notificationKind, DeviceNotificationSetting setting) {
+    if (notificationSettings == null) {
+      notificationSettings = new HashMap<>();
+    }
+    notificationSettings.put(notificationKind, setting);
+  }
 
   public byte[] authAsBytes() {
     return Base64.getDecoder().decode(getAuth());

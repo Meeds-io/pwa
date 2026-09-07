@@ -63,6 +63,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.exoplatform.services.resources.ResourceBundleService;
 
 import io.meeds.pwa.model.PwaNotificationAction;
+import io.meeds.common.ContainerTransactional;
+import io.meeds.pwa.model.DeviceNotificationSetting;
 import io.meeds.pwa.model.PwaDirectNotificationBuilder;
 import io.meeds.pwa.model.PwaNotificationMessage;
 import io.meeds.pwa.model.UserPushSubscription;
@@ -433,16 +435,34 @@ public class PwaNotificationService {
   }
 
   /**
-   * Whether a direct notification scheduled for this user can reach at least
-   * one device right now — lets callers skip buffering content that could
-   * never fire (PWA disabled, or no subscribed device).
-   *
+   * @deprecated use {@link #canReceiveDirectNotifications(String, String)}
+   *             with the notification kind — the kind can be disabled per
+   *             device. Since 7.3, for removal.
    * @param username recipient platform username
    * @return true when PWA is enabled and the user has at least one push
    *         subscription
    */
+  @Deprecated(since = "7.3", forRemoval = true)
   public boolean canReceiveDirectNotifications(String username) {
-    return pwaManifestService.isPwaEnabled() && !pwaSubscriptionService.getSubscriptions(username).isEmpty();
+    return canReceiveDirectNotifications(username, null);
+  }
+
+  /**
+   * Whether a direct notification of a kind scheduled for this user can reach
+   * at least one device right now — lets callers skip buffering content that
+   * could never fire (PWA disabled, no subscribed device, or the kind
+   * disabled on every device).
+   *
+   * @param username recipient platform username
+   * @param notificationKind the direct-notification kind (e.g. "chat")
+   * @return true when PWA is enabled and at least one subscribed device has
+   *         the kind enabled
+   */
+  public boolean canReceiveDirectNotifications(String username, String notificationKind) {
+    return pwaManifestService.isPwaEnabled()
+           && pwaSubscriptionService.getSubscriptions(username)
+                                    .stream()
+                                    .anyMatch(subscription -> isDirectNotificationEnabled(subscription, notificationKind));
   }
 
   /**
@@ -474,27 +494,52 @@ public class PwaNotificationService {
     }
     List<UserPushSubscription> subscriptions = pwaSubscriptionService.getSubscriptions(username);
     for (UserPushSubscription subscription : subscriptions) {
+      if (!isDirectNotificationEnabled(subscription, notificationKind)) {
+        continue;
+      }
       long delaySeconds = resolveDirectDelaySeconds(subscription, notificationKind, defaultDelaySeconds);
       String subscriptionId = subscription.getId();
-      executorService.schedule(() -> fireDirectNotification(username, subscriptionId, messageBuilder),
-                               delaySeconds,
-                               TimeUnit.SECONDS);
+      executorService.schedule(() -> {
+        try {
+          fireDirectNotification(username, subscriptionId, notificationKind, messageBuilder);
+        } catch (Throwable e) { // NOSONAR the executor would swallow it silently
+          log.warn("Direct push task failed for subscription {} of user {}", subscriptionId, username, e);
+        }
+      }, delaySeconds, TimeUnit.SECONDS);
     }
   }
 
   private long resolveDirectDelaySeconds(UserPushSubscription subscription, String notificationKind, long defaultDelaySeconds) {
-    // Per-device delay resolution lands with the per-device settings story
-    // (subscription-held {enabled, delayMinutes} per kind); until then every
-    // device follows the caller's default.
+    DeviceNotificationSetting setting = subscription.getNotificationSetting(notificationKind);
+    if (setting != null && setting.getDelayMinutes() != null && setting.getDelayMinutes() > 0) {
+      return setting.getDelayMinutes() * 60l;
+    }
     return defaultDelaySeconds;
   }
 
-  private void fireDirectNotification(String username, String subscriptionId, PwaDirectNotificationBuilder messageBuilder) {
+  private boolean isDirectNotificationEnabled(UserPushSubscription subscription, String notificationKind) {
+    DeviceNotificationSetting setting = subscription.getNotificationSetting(notificationKind);
+    return setting == null || setting.isEnabled();
+  }
+
+  /**
+   * Runs on the scheduler thread: {@link ContainerTransactional} binds the
+   * portal container so the subscription storage is readable there.
+   */
+  @ContainerTransactional
+  public void fireDirectNotification(String username,
+                                     String subscriptionId,
+                                     String notificationKind,
+                                     PwaDirectNotificationBuilder messageBuilder) {
     PwaNotificationMessage message = null;
     try {
       UserPushSubscription subscription = pwaSubscriptionService.getSubscription(username, subscriptionId);
-      if (subscription == null) {
-        // device unsubscribed during the delay window
+      if (subscription == null || !isDirectNotificationEnabled(subscription, notificationKind)) {
+        // device unsubscribed, or the kind disabled, during the delay window
+        log.debug("Direct push to subscription {} of user {} skipped: {}",
+                 subscriptionId,
+                 username,
+                 subscription == null ? "subscription not found" : "kind disabled on device");
         return;
       }
       message = messageBuilder.build(subscriptionId);
@@ -507,6 +552,7 @@ public class PwaNotificationService {
       String payload = DIRECT_NOTIFICATION + ":" + toDirectPayload(message);
       HttpResponse httpResponse = sendPushMessage(subscription, payload.getBytes(StandardCharsets.UTF_8));
       StatusLine status = httpResponse.getStatusLine();
+      log.debug("Direct push to subscription {} of user {}: HTTP {}", subscriptionId, username, status.getStatusCode());
       if (status.getStatusCode() == 410) {
         pwaSubscriptionService.deleteSubscription(subscription.getId(), username, false);
       } else if (status.getStatusCode() < 200 || status.getStatusCode() > 299) {
@@ -546,7 +592,8 @@ public class PwaNotificationService {
     return json;
   }
 
-  private int sendCreateNotification(Long webNotificationId) {
+  @ContainerTransactional
+  public int sendCreateNotification(Long webNotificationId) {
     NotificationInfo notification = webNotificationService.getNotificationInfo(String.valueOf(webNotificationId));
     if (notification != null && notification.getKey() != null
         && isPluginExcludedFromPush(notification.getKey().getId())) {
