@@ -19,10 +19,17 @@ package io.meeds.pwa.rest;
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -50,6 +57,9 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
+import org.exoplatform.commons.exception.ObjectNotFoundException;
+
+import io.meeds.pwa.model.DeviceNotificationSetting;
 import io.meeds.pwa.model.UserPushSubscription;
 import io.meeds.pwa.service.PwaSubscriptionService;
 import io.meeds.spring.web.security.PortalAuthenticationManager;
@@ -112,6 +122,51 @@ public class PwaPushSubscriptionRestTest {
     response.andExpect(status().isOk());
     userPushSubscription.setDeviceType("Robot");
     verify(pwaSubscriptionService).createSubscription(userPushSubscription, SIMPLE_USER);
+  }
+
+  @Test
+  void getNotificationSetting() throws Exception {
+    when(pwaSubscriptionService.getNotificationSetting(SIMPLE_USER, "sub1", "chat"))
+                                                                                    .thenReturn(new DeviceNotificationSetting(true,
+                                                                                                                              10));
+    ResultActions response = mockMvc.perform(get(REST_PATH + "/settings/sub1/chat").with(testSimpleUser()));
+    response.andExpect(status().isOk())
+            .andExpect(jsonPath("$.enabled").value(true))
+            .andExpect(jsonPath("$.delayMinutes").value(10));
+
+    when(pwaSubscriptionService.getNotificationSetting(SIMPLE_USER, "unknown", "chat"))
+                                                                                       .thenThrow(new ObjectNotFoundException("not found"));
+    mockMvc.perform(get(REST_PATH + "/settings/unknown/chat").with(testSimpleUser()))
+           .andExpect(status().isNotFound());
+  }
+
+  @Test
+  void saveNotificationSetting() throws Exception {
+    ResultActions response = mockMvc.perform(put(REST_PATH + "/settings/sub1/chat").with(testSimpleUser())
+                                                                                   .content("{\"enabled\":true,\"delayMinutes\":15}")
+                                                                                   .contentType(MediaType.APPLICATION_JSON));
+    response.andExpect(status().isNoContent());
+    verify(pwaSubscriptionService).saveNotificationSetting(SIMPLE_USER, "sub1", "chat", new DeviceNotificationSetting(true, 15));
+
+    doThrow(new ObjectNotFoundException("not found")).when(pwaSubscriptionService)
+                                                     .saveNotificationSetting(eq(SIMPLE_USER),
+                                                                              eq("unknown"),
+                                                                              eq("chat"),
+                                                                              any());
+    mockMvc.perform(put(REST_PATH + "/settings/unknown/chat").with(testSimpleUser())
+                                                             .content("{\"enabled\":false}")
+                                                             .contentType(MediaType.APPLICATION_JSON))
+           .andExpect(status().isNotFound());
+
+    doThrow(new IllegalArgumentException("pwa.notificationSetting.invalidDelay")).when(pwaSubscriptionService)
+                                                                                 .saveNotificationSetting(eq(SIMPLE_USER),
+                                                                                                          eq("sub1"),
+                                                                                                          eq("chat"),
+                                                                                                          any());
+    mockMvc.perform(put(REST_PATH + "/settings/sub1/chat").with(testSimpleUser())
+                                                          .content("{\"enabled\":true,\"delayMinutes\":-3}")
+                                                          .contentType(MediaType.APPLICATION_JSON))
+           .andExpect(status().isBadRequest());
   }
 
   @Test

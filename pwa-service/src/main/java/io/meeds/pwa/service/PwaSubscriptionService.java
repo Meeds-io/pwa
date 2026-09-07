@@ -19,6 +19,7 @@
 package io.meeds.pwa.service;
 
 import java.util.List;
+import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,13 +29,26 @@ import org.exoplatform.services.listener.ListenerService;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
 
+import org.exoplatform.commons.exception.ObjectNotFoundException;
+
+import io.meeds.pwa.model.DeviceNotificationSetting;
 import io.meeds.pwa.model.UserPushSubscription;
 import io.meeds.pwa.storage.PwaSubscriptionStorage;
 
 @Service
 public class PwaSubscriptionService {
 
-  public static final String     PWA_INSTALLED   = "pwa.installed";
+  public static final String     PWA_INSTALLED           = "pwa.installed";
+
+  /**
+   * A notification kind is a short technical key (e.g. "chat").
+   */
+  private static final Pattern   NOTIFICATION_KIND_PATTERN = Pattern.compile("[a-zA-Z0-9_-]{1,50}");
+
+  /**
+   * One day: a deferred popup delayed further stops being a notification.
+   */
+  private static final int       MAX_DELAY_MINUTES        = 1440;
 
   public static final String     PWA_UNINSTALLED = "pwa.uninstalled";
 
@@ -59,6 +73,9 @@ public class PwaSubscriptionService {
 
   public void createSubscription(UserPushSubscription subscription,
                                  String username) {
+    // per-device settings are managed through saveNotificationSetting only,
+    // never taken from the client subscribe body
+    subscription.setNotificationSettings(null);
     List<UserPushSubscription> subscriptions = pwaSubscriptionStorage.get(username);
     String endpoint = subscription.getEndpoint();
     UserPushSubscription existingSubscription = subscriptions.stream()
@@ -78,11 +95,61 @@ public class PwaSubscriptionService {
                subscription.getId(),
                username,
                getSubscriptionDomain(endpoint));
+      // client-sent settings were discarded at entry: the stored ones survive
+      subscription.setNotificationSettings(existingSubscription.getNotificationSettings());
       pwaSubscriptionStorage.delete(existingSubscription.getId(), username);
       pwaSubscriptionStorage.create(subscription, username);
     } else {
       LOG.debug("Subscription for endpoint {} already exists for user {}", getSubscriptionDomain(endpoint), username);
     }
+  }
+
+  /**
+   * @param username subscription owner
+   * @param subscriptionId the device subscription id
+   * @param notificationKind the direct-notification kind (e.g. "chat")
+   * @return the device's stored setting for that kind, or null when the
+   *         device follows the defaults (enabled, caller-chosen delay)
+   * @throws ObjectNotFoundException when no such subscription exists
+   */
+  public DeviceNotificationSetting getNotificationSetting(String username,
+                                                          String subscriptionId,
+                                                          String notificationKind) throws ObjectNotFoundException {
+    UserPushSubscription subscription = getSubscription(username, subscriptionId);
+    if (subscription == null) {
+      throw new ObjectNotFoundException(String.format("Subscription %s of user %s not found", subscriptionId, username));
+    }
+    return subscription.getNotificationSetting(notificationKind);
+  }
+
+  /**
+   * Saves one direct-notification kind's setting on one device subscription.
+   *
+   * @param username subscription owner
+   * @param subscriptionId the device subscription id
+   * @param notificationKind the direct-notification kind (e.g. "chat")
+   * @param setting the {enabled, delayMinutes} pair to store
+   * @throws ObjectNotFoundException when no such subscription exists
+   */
+  public void saveNotificationSetting(String username,
+                                      String subscriptionId,
+                                      String notificationKind,
+                                      DeviceNotificationSetting setting) throws ObjectNotFoundException {
+    if (setting == null
+        || StringUtils.isBlank(notificationKind)
+        || !NOTIFICATION_KIND_PATTERN.matcher(notificationKind).matches()) {
+      throw new IllegalArgumentException("pwa.notificationSetting.invalidKind");
+    }
+    if (setting.getDelayMinutes() != null
+        && (setting.getDelayMinutes() < 1 || setting.getDelayMinutes() > MAX_DELAY_MINUTES)) {
+      throw new IllegalArgumentException("pwa.notificationSetting.invalidDelay");
+    }
+    UserPushSubscription subscription = getSubscription(username, subscriptionId);
+    if (subscription == null) {
+      throw new ObjectNotFoundException(String.format("Subscription %s of user %s not found", subscriptionId, username));
+    }
+    subscription.setNotificationSetting(notificationKind, setting);
+    pwaSubscriptionStorage.create(subscription, username);
   }
 
   public void deleteSubscription(String id, String username) {
