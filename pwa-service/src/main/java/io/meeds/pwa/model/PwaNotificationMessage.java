@@ -19,6 +19,7 @@
 package io.meeds.pwa.model;
 
 import java.util.List;
+import java.util.Map;
 
 import lombok.Data;
 
@@ -26,6 +27,12 @@ import lombok.Data;
 public class PwaNotificationMessage {
 
   private String                      tag;
+
+  /**
+   * Routing values delivered verbatim to the service worker inside
+   * notification.data (e.g. an object id the click or dismiss handling needs).
+   */
+  private Map<String, String>         data;
 
   private String                      image;
 
