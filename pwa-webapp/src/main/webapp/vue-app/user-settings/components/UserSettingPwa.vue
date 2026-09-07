@@ -177,6 +177,8 @@ export default {
         pwaSupported: this.pwaSupported,
         loading: this.loading,
         installed: this.installed,
+        notificationPermission: this.notificationPermission,
+        subscriptionId: this.installed && this.notificationPermission === 'granted' && pwa.getSubscriptionId() || null,
       };
     },
   },
