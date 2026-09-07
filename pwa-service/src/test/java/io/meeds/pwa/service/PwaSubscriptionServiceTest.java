@@ -21,6 +21,7 @@ package io.meeds.pwa.service;
 import static io.meeds.pwa.service.PwaSubscriptionService.PWA_INSTALLED;
 import static io.meeds.pwa.service.PwaSubscriptionService.PWA_UNINSTALLED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.never;
@@ -29,6 +30,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -38,6 +40,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import org.exoplatform.services.listener.ListenerService;
 
+import org.exoplatform.commons.exception.ObjectNotFoundException;
+
+import io.meeds.pwa.model.DeviceNotificationSetting;
 import io.meeds.pwa.model.UserPushSubscription;
 import io.meeds.pwa.storage.PwaSubscriptionStorage;
 
@@ -151,6 +156,85 @@ public class PwaSubscriptionServiceTest {
 
     verify(pwaSubscriptionStorage).delete(SUBSCRIPTION_ID, TEST_USER);
     verify(pwaSubscriptionStorage).create(newSubscription, TEST_USER);
+  }
+
+  @Test
+  public void createSubscriptionShouldCarryStoredNotificationSettingsOverRecreate() {
+    UserPushSubscription newSubscription = new UserPushSubscription();
+    newSubscription.setId(NEW_SUBSCRIPTION_ID);
+    newSubscription.setEndpoint(SUBSCRIPTION_ENDPOINT);
+    newSubscription.setPushDeviceSecret(PUSH_DEVICE_SECRET);
+
+    // a client-injected settings map must be discarded, not stored
+    newSubscription.setNotificationSetting("chat", new DeviceNotificationSetting(true, 999));
+
+    Map<String, DeviceNotificationSetting> storedSettings = Map.of("chat", new DeviceNotificationSetting(false, 15));
+    when(pwaSubscriptionStorage.get(TEST_USER)).thenReturn(Collections.singletonList(userPushSubscription));
+    when(userPushSubscription.getEndpoint()).thenReturn(SUBSCRIPTION_ENDPOINT);
+    when(userPushSubscription.getId()).thenReturn(SUBSCRIPTION_ID);
+    when(userPushSubscription.getPushDeviceSecret()).thenReturn(PUSH_DEVICE_SECRET);
+    when(userPushSubscription.getNotificationSettings()).thenReturn(storedSettings);
+
+    pwaSubscriptionService.createSubscription(newSubscription, TEST_USER);
+
+    // the client subscribe body never carries settings: the stored ones survive
+    verify(pwaSubscriptionStorage).create(newSubscription, TEST_USER);
+    assertEquals(storedSettings, newSubscription.getNotificationSettings());
+  }
+
+  @Test
+  public void createSubscriptionDiscardsClientSentNotificationSettings() {
+    UserPushSubscription newSubscription = new UserPushSubscription();
+    newSubscription.setId(SUBSCRIPTION_ID);
+    newSubscription.setEndpoint(SUBSCRIPTION_ENDPOINT);
+    newSubscription.setNotificationSetting("chat", new DeviceNotificationSetting(false, 999));
+
+    when(pwaSubscriptionStorage.get(TEST_USER)).thenReturn(Collections.emptyList());
+    pwaSubscriptionService.createSubscription(newSubscription, TEST_USER);
+
+    // fresh create: nothing client-sent reaches the storage
+    verify(pwaSubscriptionStorage).create(newSubscription, TEST_USER);
+    assertNull(newSubscription.getNotificationSettings());
+  }
+
+  @Test
+  public void getAndSaveNotificationSetting() throws Exception {
+    UserPushSubscription subscription = new UserPushSubscription();
+    subscription.setId(SUBSCRIPTION_ID);
+    when(pwaSubscriptionStorage.get(TEST_USER)).thenReturn(Collections.singletonList(subscription));
+
+    assertNull(pwaSubscriptionService.getNotificationSetting(TEST_USER, SUBSCRIPTION_ID, "chat"));
+    assertThrows(ObjectNotFoundException.class,
+                 () -> pwaSubscriptionService.getNotificationSetting(TEST_USER, "unknown", "chat"));
+    assertThrows(ObjectNotFoundException.class,
+                 () -> pwaSubscriptionService.saveNotificationSetting(TEST_USER,
+                                                                      "unknown",
+                                                                      "chat",
+                                                                      new DeviceNotificationSetting(true, 5)));
+
+    DeviceNotificationSetting setting = new DeviceNotificationSetting(true, 10);
+    pwaSubscriptionService.saveNotificationSetting(TEST_USER, SUBSCRIPTION_ID, "chat", setting);
+    verify(pwaSubscriptionStorage).create(subscription, TEST_USER);
+    assertEquals(setting, pwaSubscriptionService.getNotificationSetting(TEST_USER, SUBSCRIPTION_ID, "chat"));
+
+    // a kind is a short technical key; the delay is bounded to one day
+    assertThrows(IllegalArgumentException.class,
+                 () -> pwaSubscriptionService.saveNotificationSetting(TEST_USER, SUBSCRIPTION_ID, "chat", null));
+    assertThrows(IllegalArgumentException.class,
+                 () -> pwaSubscriptionService.saveNotificationSetting(TEST_USER,
+                                                                      SUBSCRIPTION_ID,
+                                                                      "invalid kind!",
+                                                                      new DeviceNotificationSetting(true, 5)));
+    assertThrows(IllegalArgumentException.class,
+                 () -> pwaSubscriptionService.saveNotificationSetting(TEST_USER,
+                                                                      SUBSCRIPTION_ID,
+                                                                      "chat",
+                                                                      new DeviceNotificationSetting(true, 0)));
+    assertThrows(IllegalArgumentException.class,
+                 () -> pwaSubscriptionService.saveNotificationSetting(TEST_USER,
+                                                                      SUBSCRIPTION_ID,
+                                                                      "chat",
+                                                                      new DeviceNotificationSetting(true, 2000)));
   }
 
   @Test
