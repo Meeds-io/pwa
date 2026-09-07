@@ -34,24 +34,32 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.longThat;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -64,6 +72,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import org.exoplatform.commons.api.notification.model.NotificationInfo;
 import org.exoplatform.commons.api.notification.model.PluginKey;
@@ -79,6 +88,7 @@ import org.exoplatform.services.resources.Orientation;
 import org.exoplatform.services.resources.ResourceBundleService;
 import org.exoplatform.services.resources.impl.LocaleConfigImpl;
 
+import io.meeds.pwa.model.PwaDirectNotificationBuilder;
 import io.meeds.pwa.model.PwaNotificationMessage;
 import io.meeds.pwa.model.UserPushSubscription;
 import io.meeds.pwa.plugin.DefaultPwaNotificationPlugin;
@@ -455,6 +465,227 @@ public class PwaNotificationServiceTest {
     future = pwaNotificationService.create(params);
     assertNotNull(future);
     assertEquals(0, (int) future.get());
+    verifyNoInteractions(listenerService);
+  }
+
+  @Test
+  public void scheduleDirectNotificationFiresSelfContainedPush() throws Exception { // NOSONAR
+    List<String> builtForSubscriptions = new ArrayList<>();
+    PwaDirectNotificationBuilder builder = subscriptionId -> {
+      builtForSubscriptions.add(subscriptionId);
+      PwaNotificationMessage message = new PwaNotificationMessage();
+      message.setTitle("John in General");
+      message.setBody("Hello there");
+      message.setTag("!room:server");
+      message.setRenotify(true);
+      message.setData(Map.of("roomId", "!room:server"));
+      return message;
+    };
+    ScheduledExecutorService originalExecutor =
+                                              (ScheduledExecutorService) ReflectionTestUtils.getField(pwaNotificationService,
+                                                                                                      "executorService");
+    ScheduledExecutorService executorService = mock(ScheduledExecutorService.class);
+    ReflectionTestUtils.setField(pwaNotificationService, "executorService", executorService);
+    try {
+      // PWA disabled: nothing scheduled
+      pwaNotificationService.scheduleDirectNotification(TEST_USER, "chat", 300l, builder);
+      verifyNoInteractions(executorService);
+
+      when(pwaManifestService.isPwaEnabled()).thenReturn(true);
+      mockSubscription(false);
+      pwaNotificationService.scheduleDirectNotification(TEST_USER, "chat", 300l, builder);
+      ArgumentCaptor<Runnable> fire = ArgumentCaptor.forClass(Runnable.class);
+      verify(executorService).schedule(fire.capture(), eq(300l), eq(TimeUnit.SECONDS));
+
+      when(pushService.send(any())).thenReturn(httpResponse);
+      when(httpResponse.getStatusLine()).thenReturn(statusLine);
+      when(statusLine.getStatusCode()).thenReturn(200);
+      fire.getValue().run();
+      ArgumentCaptor<Notification> pushCaptor = ArgumentCaptor.forClass(Notification.class);
+      verify(pushService).send(pushCaptor.capture());
+      String payload = new String(pushCaptor.getValue().getPayload(), StandardCharsets.UTF_8);
+      assertTrue(payload.startsWith("DIRECT_NOTIFICATION:"));
+      String json = payload.substring(payload.indexOf(':') + 1);
+      assertTrue(json.contains("\"title\":\"John in General\""));
+      assertTrue(json.contains("\"body\":\"Hello there\""));
+      assertTrue(json.contains("\"tag\":\"!room:server\""));
+      assertTrue(json.contains("\"roomId\":\"!room:server\""));
+      // the builder is invoked once per device, with that device's id
+      assertEquals(List.of(SUBSCRIPTION_ID), builtForSubscriptions);
+    } finally {
+      ReflectionTestUtils.setField(pwaNotificationService, "executorService", originalExecutor);
+    }
+  }
+
+  @Test
+  public void fireDirectNotificationGuards() throws Exception { // NOSONAR
+    ScheduledExecutorService originalExecutor =
+                                              (ScheduledExecutorService) ReflectionTestUtils.getField(pwaNotificationService,
+                                                                                                      "executorService");
+    ScheduledExecutorService executorService = mock(ScheduledExecutorService.class);
+    ReflectionTestUtils.setField(pwaNotificationService, "executorService", executorService);
+    try {
+      when(pwaManifestService.isPwaEnabled()).thenReturn(true);
+      mockSubscription(false);
+      ArgumentCaptor<Runnable> fire = ArgumentCaptor.forClass(Runnable.class);
+
+      // a null build cancels the send at fire time (fire-time guard)
+      pwaNotificationService.scheduleDirectNotification(TEST_USER, "chat", 60l, subscriptionId -> null);
+      verify(executorService, times(1)).schedule(fire.capture(), eq(60l), eq(TimeUnit.SECONDS));
+      fire.getValue().run();
+      verifyNoInteractions(pushService);
+
+      // the device unsubscribed during the delay window: nothing sent
+      PwaNotificationMessage message = new PwaNotificationMessage();
+      message.setTitle("A title");
+      pwaNotificationService.scheduleDirectNotification(TEST_USER, "chat", 60l, subscriptionId -> message);
+      verify(executorService, times(2)).schedule(fire.capture(), eq(60l), eq(TimeUnit.SECONDS));
+      when(pwaSubscriptionService.getSubscription(TEST_USER, SUBSCRIPTION_ID)).thenReturn(null);
+      fire.getValue().run();
+      verifyNoInteractions(pushService);
+
+      // a gone subscription (HTTP 410) is deleted
+      when(pwaSubscriptionService.getSubscription(TEST_USER, SUBSCRIPTION_ID)).thenReturn(userPushSubscription);
+      when(pushService.send(any())).thenReturn(httpResponse);
+      when(httpResponse.getStatusLine()).thenReturn(statusLine);
+      when(statusLine.getStatusCode()).thenReturn(410);
+      pwaNotificationService.scheduleDirectNotification(TEST_USER, "chat", 60l, subscriptionId -> message);
+      verify(executorService, times(3)).schedule(fire.capture(), eq(60l), eq(TimeUnit.SECONDS));
+      fire.getValue().run();
+      verify(pwaSubscriptionService).deleteSubscription(SUBSCRIPTION_ID, TEST_USER, false);
+    } finally {
+      ReflectionTestUtils.setField(pwaNotificationService, "executorService", originalExecutor);
+    }
+  }
+
+  @Test
+  public void directNotificationPayloadCapsBody() throws Exception { // NOSONAR
+    PwaNotificationMessage message = new PwaNotificationMessage();
+    message.setTitle("A title");
+    message.setBody("x".repeat(10000));
+    ScheduledExecutorService originalExecutor =
+                                              (ScheduledExecutorService) ReflectionTestUtils.getField(pwaNotificationService,
+                                                                                                      "executorService");
+    ScheduledExecutorService executorService = mock(ScheduledExecutorService.class);
+    ReflectionTestUtils.setField(pwaNotificationService, "executorService", executorService);
+    try {
+      when(pwaManifestService.isPwaEnabled()).thenReturn(true);
+      mockSubscription(false);
+      when(pushService.send(any())).thenReturn(httpResponse);
+      when(httpResponse.getStatusLine()).thenReturn(statusLine);
+      when(statusLine.getStatusCode()).thenReturn(200);
+
+      pwaNotificationService.scheduleDirectNotification(TEST_USER, "chat", 300l, subscriptionId -> message);
+      ArgumentCaptor<Runnable> fire = ArgumentCaptor.forClass(Runnable.class);
+      verify(executorService).schedule(fire.capture(), eq(300l), eq(TimeUnit.SECONDS));
+      fire.getValue().run();
+
+      ArgumentCaptor<Notification> pushCaptor = ArgumentCaptor.forClass(Notification.class);
+      verify(pushService).send(pushCaptor.capture());
+      String payload = new String(pushCaptor.getValue().getPayload(), StandardCharsets.UTF_8);
+      // Web Push payloads are capped around 4KB once encrypted: the body is
+      // shrunk so the whole payload stays under the margin
+      assertTrue(payload.getBytes(StandardCharsets.UTF_8).length <= "DIRECT_NOTIFICATION:".length() + 3800);
+      assertTrue(payload.contains("..."));
+    } finally {
+      ReflectionTestUtils.setField(pwaNotificationService, "executorService", originalExecutor);
+    }
+  }
+
+  @Test
+  public void scheduleDirectNotificationFiresOncePerDevice() throws Exception { // NOSONAR
+    ScheduledExecutorService originalExecutor =
+                                              (ScheduledExecutorService) ReflectionTestUtils.getField(pwaNotificationService,
+                                                                                                      "executorService");
+    ScheduledExecutorService executorService = mock(ScheduledExecutorService.class);
+    ReflectionTestUtils.setField(pwaNotificationService, "executorService", executorService);
+    try {
+      when(pwaManifestService.isPwaEnabled()).thenReturn(true);
+      UserPushSubscription secondSubscription = mock(UserPushSubscription.class);
+      when(userPushSubscription.getId()).thenReturn(SUBSCRIPTION_ID);
+      when(secondSubscription.getId()).thenReturn("secondSubscriptionId");
+      when(pwaSubscriptionService.getSubscriptions(TEST_USER)).thenReturn(List.of(userPushSubscription, secondSubscription));
+
+      pwaNotificationService.scheduleDirectNotification(TEST_USER, "chat", 300l, subscriptionId -> null);
+      // one deferred fire per subscribed device
+      verify(executorService, times(2)).schedule(any(Runnable.class), eq(300l), eq(TimeUnit.SECONDS));
+    } finally {
+      ReflectionTestUtils.setField(pwaNotificationService, "executorService", originalExecutor);
+    }
+  }
+
+  @Test
+  public void fireDirectNotificationReportsSendFailure() throws Exception { // NOSONAR
+    ScheduledExecutorService originalExecutor =
+                                              (ScheduledExecutorService) ReflectionTestUtils.getField(pwaNotificationService,
+                                                                                                      "executorService");
+    ScheduledExecutorService executorService = mock(ScheduledExecutorService.class);
+    ReflectionTestUtils.setField(pwaNotificationService, "executorService", executorService);
+    try {
+      when(pwaManifestService.isPwaEnabled()).thenReturn(true);
+      mockSubscription(false);
+      PwaNotificationMessage message = new PwaNotificationMessage();
+      message.setTitle("A title");
+      AtomicReference<String> failedSubscription = new AtomicReference<>();
+      PwaDirectNotificationBuilder builder = new PwaDirectNotificationBuilder() {
+        @Override
+        public PwaNotificationMessage build(String subscriptionId) {
+          return message;
+        }
+
+        @Override
+        public void onSendFailure(String subscriptionId, PwaNotificationMessage failedMessage) {
+          failedSubscription.set(subscriptionId);
+        }
+      };
+
+      when(pushService.send(any())).thenReturn(httpResponse);
+      when(httpResponse.getStatusLine()).thenReturn(statusLine);
+      when(statusLine.getStatusCode()).thenReturn(500);
+      pwaNotificationService.scheduleDirectNotification(TEST_USER, "chat", 60l, builder);
+      ArgumentCaptor<Runnable> fire = ArgumentCaptor.forClass(Runnable.class);
+      verify(executorService).schedule(fire.capture(), eq(60l), eq(TimeUnit.SECONDS));
+      fire.getValue().run();
+      // a non-2xx send reports back so the caller can re-arm its guard
+      assertEquals(SUBSCRIPTION_ID, failedSubscription.get());
+
+      // 410 means the device is gone: deleted, not reported as a failure
+      failedSubscription.set(null);
+      when(statusLine.getStatusCode()).thenReturn(410);
+      pwaNotificationService.scheduleDirectNotification(TEST_USER, "chat", 60l, builder);
+      verify(executorService, times(2)).schedule(fire.capture(), eq(60l), eq(TimeUnit.SECONDS));
+      fire.getValue().run();
+      verify(pwaSubscriptionService).deleteSubscription(SUBSCRIPTION_ID, TEST_USER, false);
+      assertNull(failedSubscription.get());
+    } finally {
+      ReflectionTestUtils.setField(pwaNotificationService, "executorService", originalExecutor);
+    }
+  }
+
+  @Test
+  public void createSkipsPushExcludedPlugin() throws Exception { // NOSONAR
+    assertFalse(pwaNotificationService.isPluginExcludedFromPush("ExcludedPlugin"));
+    pwaNotificationService.excludePluginFromPush("ExcludedPlugin");
+    assertTrue(pwaNotificationService.isPluginExcludedFromPush("ExcludedPlugin"));
+
+    when(pwaManifestService.isPwaEnabled()).thenReturn(true);
+    when(webNotificationService.getNotificationInfo(String.valueOf(NOTIFICATION_ID))).thenReturn(notification);
+    when(notification.getKey()).thenReturn(PluginKey.key("ExcludedPlugin"));
+    // everything below would let the push go out if the exclusion guard were
+    // dropped, so its absence fails on the behavior, not on a missing stub
+    lenient().when(notification.getTo()).thenReturn(TEST_USER);
+    lenient().when(notification.getId()).thenReturn(String.valueOf(NOTIFICATION_ID));
+    lenient().when(pwaSubscriptionService.getSubscriptions(TEST_USER)).thenReturn(Collections.singletonList(userPushSubscription));
+    lenient().when(userPushSubscription.getEndpoint()).thenReturn(SUBSCRIPTION_ENDPOINT);
+    lenient().when(userPushSubscription.getId()).thenReturn(SUBSCRIPTION_ID);
+    lenient().when(pushService.send(any())).thenReturn(httpResponse);
+    lenient().when(httpResponse.getStatusLine()).thenReturn(statusLine);
+    lenient().when(statusLine.getStatusCode()).thenReturn(200);
+
+    ScheduledFuture<?> future = pwaNotificationService.create(NOTIFICATION_ID);
+    assertNotNull(future);
+    assertEquals(0, (int) future.get());
+    verifyNoInteractions(pushService);
     verifyNoInteractions(listenerService);
   }
 
