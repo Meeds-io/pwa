@@ -206,6 +206,50 @@ self.addEventListener('push', event => {
           reject(e);
         }
       }));
+    } else if (notificationType === 'DIRECT_NOTIFICATION') {
+      // Self-contained payload: the rendered notification travels inside the
+      // (encrypted) push message — displaying it needs no session and no fetch.
+      event.waitUntil((async () => {
+        try {
+          const directNotification = JSON.parse(data.substring(data.indexOf(':') + 1));
+          const title = directNotification.title || getFallbackNotificationTitle();
+          directNotification.data = {
+            ...(directNotification.data || {}),
+            url: self.location.origin + (directNotification.url || '/'),
+            type: 'DIRECT_NOTIFICATION',
+          };
+          delete directNotification.title;
+          delete directNotification.url;
+          if (!directNotification.icon) {
+            directNotification.icon = self.location.origin + '/pwa/rest/manifest/smallIcon?sizes=72x72';
+          } else if (directNotification.icon.indexOf('/') === 0) {
+            directNotification.icon = self.location.origin + directNotification.icon;
+          }
+          directNotification.badge = self.location.origin + '/pwa/rest/manifest/monochromeIcon';
+          if (!directNotification.tag) {
+            delete directNotification.tag;
+            delete directNotification.renotify;
+          }
+          if (!Notification.maxActions || !directNotification.actions) {
+            delete directNotification.actions;
+          } else if (directNotification.actions.length > Notification.maxActions) {
+            directNotification.actions = directNotification.actions.slice(0, Notification.maxActions);
+          }
+          await self.registration.showNotification(title, directNotification);
+        } catch (e) {
+          const fallbackNotification = getFallbackNotification(null);
+          // renotify without a tag makes showNotification throw a TypeError
+          delete fallbackNotification.tag;
+          delete fallbackNotification.renotify;
+          fallbackNotification.badge = self.location.origin + '/pwa/rest/manifest/monochromeIcon';
+          fallbackNotification.data = {
+            url: self.location.origin + '/',
+            type: 'DIRECT_NOTIFICATION',
+          };
+          await self.registration.showNotification(fallbackNotification.title, fallbackNotification);
+        }
+        await refreshBadge();
+      })());
     }
   }
 });
@@ -260,7 +304,10 @@ self.addEventListener('notificationclick', event => {
     } catch(e) {
       console.error(e);
     } finally {
-      await markAsRead(notificationId, notificationAccessToken, subscriptionId);
+      if (!notificationType || notificationType === 'WEB_NOTIFICATION') {
+        // a DIRECT notification has no stored server-side row to mark read
+        await markAsRead(notificationId, notificationAccessToken, subscriptionId);
+      }
       resolve();
     }
   }));

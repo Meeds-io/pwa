@@ -26,6 +26,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -53,9 +56,14 @@ import org.exoplatform.services.organization.OrganizationService;
 import org.exoplatform.services.organization.UserProfile;
 import org.exoplatform.services.resources.LocaleConfig;
 import org.exoplatform.services.resources.LocaleConfigService;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.exoplatform.services.resources.ResourceBundleService;
 
 import io.meeds.pwa.model.PwaNotificationAction;
+import io.meeds.pwa.model.PwaDirectNotificationBuilder;
 import io.meeds.pwa.model.PwaNotificationMessage;
 import io.meeds.pwa.model.UserPushSubscription;
 import io.meeds.pwa.plugin.DefaultPwaNotificationPlugin;
@@ -121,6 +129,13 @@ public class PwaNotificationService {
 
   public static final String           WEB_NOTIFICATION                              = "WEB_NOTIFICATION";
 
+  /**
+   * Push payload type whose content is the rendered notification itself
+   * (JSON), displayed by the service worker with no server fetch — usable by
+   * any domain that needs a push without a stored web notification.
+   */
+  public static final String           DIRECT_NOTIFICATION                           = "DIRECT_NOTIFICATION";
+
   public static final String           EVENT_USERNAME_PARAM_NAME                     = "username";
 
   public static final String           EVENT_DURATION_PARAM_NAME                     = "duration";
@@ -179,6 +194,24 @@ public class PwaNotificationService {
   @Value("${pwa.notifications.maxBodyLength:75}")
   private int                          maxBodyLength;
 
+  /**
+   * Plugin ids of stored web notifications that must not be delivered as push
+   * (they keep their on-site/mail channels untouched). Filled from the
+   * property below and through {@link #excludePluginFromPush(String)}.
+   */
+  @Value("${pwa.notifications.push.excludedPlugins:}")
+  private String                       pushExcludedPluginsProperty;
+
+  private final Set<String>            pushExcludedPluginIds                         = ConcurrentHashMap.newKeySet();
+
+  private static final ObjectMapper    DIRECT_PAYLOAD_MAPPER                         =
+                                                             new ObjectMapper().setSerializationInclusion(JsonInclude.Include.NON_NULL);
+
+  /**
+   * Web Push payloads are capped around 4KB once encrypted; keep a margin.
+   */
+  private static final int             DIRECT_PAYLOAD_MAX_BYTES                      = 3800;
+
   @Value("${pwa.notifications.requireInteraction:true}")
   private boolean                      requireInteraction;
 
@@ -208,6 +241,12 @@ public class PwaNotificationService {
     ThreadFactory threadFactory = new BasicThreadFactory.Builder().namingPattern("PWA-Push-Notification-%d")
                                                                   .build();
     executorService = Executors.newScheduledThreadPool(poolSize, threadFactory);
+    if (StringUtils.isNotBlank(pushExcludedPluginsProperty)) {
+      Stream.of(pushExcludedPluginsProperty.split(","))
+            .map(String::trim)
+            .filter(StringUtils::isNotBlank)
+            .forEach(pushExcludedPluginIds::add);
+    }
   }
 
   @PreDestroy
@@ -376,8 +415,143 @@ public class PwaNotificationService {
     return pwaNotificationStorage.getVapidPublicKeyString();
   }
 
+  /**
+   * Excludes a stored web-notification plugin from push delivery: its
+   * notifications keep their on-site and mail channels untouched, but never
+   * produce a push popup. Any domain can register its plugin here.
+   *
+   * @param pluginId the {@link NotificationInfo} plugin id to exclude
+   */
+  public void excludePluginFromPush(String pluginId) {
+    if (StringUtils.isNotBlank(pluginId)) {
+      pushExcludedPluginIds.add(pluginId);
+    }
+  }
+
+  public boolean isPluginExcludedFromPush(String pluginId) {
+    return pluginId != null && pushExcludedPluginIds.contains(pluginId);
+  }
+
+  /**
+   * Whether a direct notification scheduled for this user can reach at least
+   * one device right now — lets callers skip buffering content that could
+   * never fire (PWA disabled, or no subscribed device).
+   *
+   * @param username recipient platform username
+   * @return true when PWA is enabled and the user has at least one push
+   *         subscription
+   */
+  public boolean canReceiveDirectNotifications(String username) {
+    return pwaManifestService.isPwaEnabled() && !pwaSubscriptionService.getSubscriptions(username).isEmpty();
+  }
+
+  /**
+   * Schedules, for each subscribed device of a user, a self-contained push
+   * whose content is produced at fire time by the given builder — once per
+   * device, with the device's subscription id, so the caller can keep
+   * per-device state (e.g. a per-device "already popped" watermark). A device
+   * fires after its own delay (per-device setting when defined, else
+   * {@code defaultDelaySeconds}). A {@code null} build cancels the send for
+   * that device — the caller's guard (e.g. "already read") decides at fire
+   * time, not at schedule time; a failed send reports back through
+   * {@link PwaDirectNotificationBuilder#onSendFailure(String,
+   * PwaNotificationMessage)}. The rendered notification travels inside the
+   * encrypted push payload: displaying it requires no session and no fetch.
+   *
+   * @param username recipient platform username
+   * @param notificationKind caller-chosen key of the per-device settings (e.g.
+   *          "chat")
+   * @param defaultDelaySeconds delay when the device defines none
+   * @param messageBuilder produces the notification at fire time per device,
+   *          or null to cancel that device's send
+   */
+  public void scheduleDirectNotification(String username,
+                                         String notificationKind,
+                                         long defaultDelaySeconds,
+                                         PwaDirectNotificationBuilder messageBuilder) {
+    if (!pwaManifestService.isPwaEnabled()) {
+      return;
+    }
+    List<UserPushSubscription> subscriptions = pwaSubscriptionService.getSubscriptions(username);
+    for (UserPushSubscription subscription : subscriptions) {
+      long delaySeconds = resolveDirectDelaySeconds(subscription, notificationKind, defaultDelaySeconds);
+      String subscriptionId = subscription.getId();
+      executorService.schedule(() -> fireDirectNotification(username, subscriptionId, messageBuilder),
+                               delaySeconds,
+                               TimeUnit.SECONDS);
+    }
+  }
+
+  private long resolveDirectDelaySeconds(UserPushSubscription subscription, String notificationKind, long defaultDelaySeconds) {
+    // Per-device delay resolution lands with the per-device settings story
+    // (subscription-held {enabled, delayMinutes} per kind); until then every
+    // device follows the caller's default.
+    return defaultDelaySeconds;
+  }
+
+  private void fireDirectNotification(String username, String subscriptionId, PwaDirectNotificationBuilder messageBuilder) {
+    PwaNotificationMessage message = null;
+    try {
+      UserPushSubscription subscription = pwaSubscriptionService.getSubscription(username, subscriptionId);
+      if (subscription == null) {
+        // device unsubscribed during the delay window
+        return;
+      }
+      message = messageBuilder.build(subscriptionId);
+      if (message == null) {
+        // cancelled by the caller's fire-time guard (e.g. read meanwhile)
+        return;
+      }
+      // platform-level display defaults, applied like the web-notification path
+      message.setRequireInteraction(requireInteraction);
+      String payload = DIRECT_NOTIFICATION + ":" + toDirectPayload(message);
+      HttpResponse httpResponse = sendPushMessage(subscription, payload.getBytes(StandardCharsets.UTF_8));
+      StatusLine status = httpResponse.getStatusLine();
+      if (status.getStatusCode() == 410) {
+        pwaSubscriptionService.deleteSubscription(subscription.getId(), username, false);
+      } else if (status.getStatusCode() < 200 || status.getStatusCode() > 299) {
+        log.warn("Direct push to subscription {} of user {} failed with HTTP {}",
+                 subscriptionId,
+                 username,
+                 status.getStatusCode());
+        reportSendFailure(messageBuilder, subscriptionId, message);
+      }
+    } catch (Exception e) {
+      log.warn("Error sending direct push notification to user {}", username, e);
+      if (message != null) {
+        reportSendFailure(messageBuilder, subscriptionId, message);
+      }
+    }
+  }
+
+  private void reportSendFailure(PwaDirectNotificationBuilder messageBuilder,
+                                 String subscriptionId,
+                                 PwaNotificationMessage message) {
+    try {
+      messageBuilder.onSendFailure(subscriptionId, message);
+    } catch (Exception e) {
+      log.warn("Error handling direct push send failure for subscription {}", subscriptionId, e);
+    }
+  }
+
+  private String toDirectPayload(PwaNotificationMessage message) throws JsonProcessingException {
+    String json = DIRECT_PAYLOAD_MAPPER.writeValueAsString(message);
+    int overshoot = json.getBytes(StandardCharsets.UTF_8).length - DIRECT_PAYLOAD_MAX_BYTES;
+    if (overshoot > 0 && StringUtils.isNotBlank(message.getBody())) {
+      // the body is the only unbounded part of the payload
+      int newLength = Math.max(10, message.getBody().length() - overshoot);
+      message.setBody(StringUtils.abbreviate(message.getBody(), newLength));
+      json = DIRECT_PAYLOAD_MAPPER.writeValueAsString(message);
+    }
+    return json;
+  }
+
   private int sendCreateNotification(Long webNotificationId) {
     NotificationInfo notification = webNotificationService.getNotificationInfo(String.valueOf(webNotificationId));
+    if (notification != null && notification.getKey() != null
+        && isPluginExcludedFromPush(notification.getKey().getId())) {
+      return 0;
+    }
     int sentCount = sendNotification(notification, PWA_NOTIFICATION_OPEN_UI_ACTION);
     if (sentCount > 0) {
       listenerService.broadcast(PWA_NOTIFICATION_CREATED, webNotificationId, null);
