@@ -22,14 +22,23 @@ import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.annotation.Secured;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.server.ResponseStatusException;
 
+import org.exoplatform.commons.exception.ObjectNotFoundException;
+
+import io.meeds.pwa.model.DeviceNotificationSetting;
 import io.meeds.pwa.model.UserPushSubscription;
 import io.meeds.pwa.service.PwaSubscriptionService;
 
@@ -68,6 +77,56 @@ public class PwaPushSubscriptionRest {
     subscription.setDeviceType(getDeviceType(request));
     pwaSubscriptionService.createSubscription(subscription,
                                               request.getRemoteUser());
+  }
+
+  @GetMapping("settings/{subscriptionId}/{notificationKind}")
+  @Secured("users")
+  @Operation(summary = "Retrieves one direct-notification kind's setting of one device subscription of the current user",
+             description = "Returns the stored {enabled, delayMinutes} pair, or an empty body when the device follows the defaults",
+             method = "GET")
+  @ApiResponses(value = {
+                          @ApiResponse(responseCode = "200", description = "Setting returned"),
+                          @ApiResponse(responseCode = "404", description = "Subscription not found"),
+  })
+  public DeviceNotificationSetting getNotificationSetting(
+                                                          WebRequest request,
+                                                          @PathVariable("subscriptionId")
+                                                          String subscriptionId,
+                                                          @PathVariable("notificationKind")
+                                                          String notificationKind) {
+    try {
+      return pwaSubscriptionService.getNotificationSetting(request.getRemoteUser(), subscriptionId, notificationKind);
+    } catch (ObjectNotFoundException e) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+    }
+  }
+
+  @PutMapping("settings/{subscriptionId}/{notificationKind}")
+  @Secured("users")
+  @Operation(summary = "Saves one direct-notification kind's setting on one device subscription of the current user",
+             description = "Stores the {enabled, delayMinutes} pair for the given kind on the given device",
+             method = "PUT")
+  @ApiResponses(value = {
+                          @ApiResponse(responseCode = "204", description = "Setting saved"),
+                          @ApiResponse(responseCode = "400", description = "Invalid kind or delay"),
+                          @ApiResponse(responseCode = "404", description = "Subscription not found"),
+  })
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void saveNotificationSetting(
+                                      WebRequest request,
+                                      @PathVariable("subscriptionId")
+                                      String subscriptionId,
+                                      @PathVariable("notificationKind")
+                                      String notificationKind,
+                                      @RequestBody
+                                      DeviceNotificationSetting setting) {
+    try {
+      pwaSubscriptionService.saveNotificationSetting(request.getRemoteUser(), subscriptionId, notificationKind, setting);
+    } catch (ObjectNotFoundException e) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+    } catch (IllegalArgumentException e) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+    }
   }
 
   @DeleteMapping

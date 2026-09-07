@@ -88,6 +88,7 @@ import org.exoplatform.services.resources.Orientation;
 import org.exoplatform.services.resources.ResourceBundleService;
 import org.exoplatform.services.resources.impl.LocaleConfigImpl;
 
+import io.meeds.pwa.model.DeviceNotificationSetting;
 import io.meeds.pwa.model.PwaDirectNotificationBuilder;
 import io.meeds.pwa.model.PwaNotificationMessage;
 import io.meeds.pwa.model.UserPushSubscription;
@@ -657,6 +658,68 @@ public class PwaNotificationServiceTest {
       fire.getValue().run();
       verify(pwaSubscriptionService).deleteSubscription(SUBSCRIPTION_ID, TEST_USER, false);
       assertNull(failedSubscription.get());
+    } finally {
+      ReflectionTestUtils.setField(pwaNotificationService, "executorService", originalExecutor);
+    }
+  }
+
+  @Test
+  public void scheduleDirectNotificationHonorsPerDeviceSettings() throws Exception { // NOSONAR
+    ScheduledExecutorService originalExecutor =
+                                              (ScheduledExecutorService) ReflectionTestUtils.getField(pwaNotificationService,
+                                                                                                      "executorService");
+    ScheduledExecutorService executorService = mock(ScheduledExecutorService.class);
+    ReflectionTestUtils.setField(pwaNotificationService, "executorService", executorService);
+    try {
+      when(pwaManifestService.isPwaEnabled()).thenReturn(true);
+      UserPushSubscription disabledDevice = new UserPushSubscription();
+      disabledDevice.setId("disabledDevice");
+      disabledDevice.setNotificationSetting("chat", new DeviceNotificationSetting(false, null));
+      UserPushSubscription slowDevice = new UserPushSubscription();
+      slowDevice.setId("slowDevice");
+      slowDevice.setNotificationSetting("chat", new DeviceNotificationSetting(true, 10));
+      UserPushSubscription defaultDevice = new UserPushSubscription();
+      defaultDevice.setId("defaultDevice");
+      when(pwaSubscriptionService.getSubscriptions(TEST_USER)).thenReturn(List.of(disabledDevice, slowDevice, defaultDevice));
+
+      // the kind is enabled on at least one device
+      assertTrue(pwaNotificationService.canReceiveDirectNotifications(TEST_USER, "chat"));
+
+      pwaNotificationService.scheduleDirectNotification(TEST_USER, "chat", 300l, subscriptionId -> null);
+      // the disabled device is never scheduled; the device with its own delay
+      // fires after it, the device without a setting follows the default
+      verify(executorService, times(2)).schedule(any(Runnable.class), anyLong(), eq(TimeUnit.SECONDS));
+      verify(executorService, times(1)).schedule(any(Runnable.class), eq(600l), eq(TimeUnit.SECONDS));
+      verify(executorService, times(1)).schedule(any(Runnable.class), eq(300l), eq(TimeUnit.SECONDS));
+
+      // the kind disabled on every device: nothing can fire
+      when(pwaSubscriptionService.getSubscriptions(TEST_USER)).thenReturn(List.of(disabledDevice));
+      assertFalse(pwaNotificationService.canReceiveDirectNotifications(TEST_USER, "chat"));
+    } finally {
+      ReflectionTestUtils.setField(pwaNotificationService, "executorService", originalExecutor);
+    }
+  }
+
+  @Test
+  public void fireDirectNotificationSkipsKindDisabledDuringDelay() throws Exception { // NOSONAR
+    ScheduledExecutorService originalExecutor =
+                                              (ScheduledExecutorService) ReflectionTestUtils.getField(pwaNotificationService,
+                                                                                                      "executorService");
+    ScheduledExecutorService executorService = mock(ScheduledExecutorService.class);
+    ReflectionTestUtils.setField(pwaNotificationService, "executorService", executorService);
+    try {
+      when(pwaManifestService.isPwaEnabled()).thenReturn(true);
+      mockSubscription(false);
+      PwaNotificationMessage message = new PwaNotificationMessage();
+      message.setTitle("A title");
+      pwaNotificationService.scheduleDirectNotification(TEST_USER, "chat", 60l, subscriptionId -> message);
+      ArgumentCaptor<Runnable> fire = ArgumentCaptor.forClass(Runnable.class);
+      verify(executorService).schedule(fire.capture(), eq(60l), eq(TimeUnit.SECONDS));
+
+      // the user disabled the kind on this device during the delay window
+      when(userPushSubscription.getNotificationSetting("chat")).thenReturn(new DeviceNotificationSetting(false, null));
+      fire.getValue().run();
+      verifyNoInteractions(pushService);
     } finally {
       ReflectionTestUtils.setField(pwaNotificationService, "executorService", originalExecutor);
     }
