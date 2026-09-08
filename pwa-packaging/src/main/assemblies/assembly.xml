@@ -47,9 +47,9 @@
       <includes>
         <include>${project.groupId}:*:jar</include>
         <include>nl.martijndwars:web-push:jar</include>
-        <!-- web-push's HTTP stack -->
-        <include>org.apache.httpcomponents:httpasyncclient:jar</include>
-        <include>org.apache.httpcomponents:httpcore-nio:jar</include>
+        <!-- web-push's HTTP stack (httpasyncclient, httpcore-nio) is shipped by
+             the platform's shared lib since EXO-90073: listing it here makes the
+             add-on install fail on a file conflict -->
         <include>org.bitbucket.b_c:jose4j:jar</include>
       </includes>
       <scope>provided</scope>
