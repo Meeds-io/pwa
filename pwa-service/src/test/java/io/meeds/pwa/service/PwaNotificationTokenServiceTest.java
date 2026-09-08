@@ -254,4 +254,15 @@ public class PwaNotificationTokenServiceTest {
       return index.getAndIncrement() % 2 == 0 ? TOKEN_SELECTOR : TOKEN_VALIDATOR;
     }
   }
+
+  @Test
+  public void stringScopedTokenTypeMatchesLegacyLongScope() {
+    // a stored web notification "12" and the object id "12" share one scope:
+    // tokens minted before this change keep validating
+    assertEquals(tokenService.buildTokenType(12L, "sub1"),
+                 tokenService.buildTokenType("12", "sub1"));
+    assertNotEquals(tokenService.buildTokenType("chat:!room", "sub1"),
+                    tokenService.buildTokenType("chat:!room", "sub2"));
+  }
+
 }

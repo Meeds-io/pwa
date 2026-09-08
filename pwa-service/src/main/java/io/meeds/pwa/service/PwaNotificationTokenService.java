@@ -62,28 +62,56 @@ public class PwaNotificationTokenService extends CookieTokenService { // NOSONAR
   }
 
   public String createToken(String username, long notificationId, String subscriptionId) {
+    return createToken(username, String.valueOf(notificationId), subscriptionId);
+  }
+
+  /**
+   * Creates a token scoped to any push-notification object (a stored web
+   * notification id, or a direct notification's object key) and one device.
+   *
+   * @param username token owner
+   * @param objectId the notification object the token grants access to
+   * @param subscriptionId the device subscription the token is bound to
+   * @return the raw token to hand to that device
+   */
+  public String createToken(String username, String objectId, String subscriptionId) {
     if (StringUtils.isBlank(username)) {
       throw new IllegalArgumentException("username is mandatory");
     }
     if (StringUtils.isBlank(subscriptionId)) {
       throw new IllegalArgumentException("subscriptionId is mandatory");
     }
-    return super.createToken(username, buildTokenType(notificationId, subscriptionId));
+    if (StringUtils.isBlank(objectId)) {
+      throw new IllegalArgumentException("objectId is mandatory");
+    }
+    return super.createToken(username, buildTokenType(objectId, subscriptionId));
   }
 
   public String validateToken(String token, long notificationId, String subscriptionId) {
-    return validateToken(token, notificationId, subscriptionId, false);
+    return validateToken(token, String.valueOf(notificationId), subscriptionId, false);
+  }
+
+  public String validateToken(String token, String objectId, String subscriptionId) {
+    return validateToken(token, objectId, subscriptionId, false);
   }
 
   public String consumeToken(String token, long notificationId, String subscriptionId) {
-    return validateToken(token, notificationId, subscriptionId, true);
+    return validateToken(token, String.valueOf(notificationId), subscriptionId, true);
+  }
+
+  public String consumeToken(String token, String objectId, String subscriptionId) {
+    return validateToken(token, objectId, subscriptionId, true);
   }
 
   public String validateToken(String token, long notificationId, String subscriptionId, boolean remove) {
-    if (StringUtils.isBlank(token) || StringUtils.isBlank(subscriptionId)) {
+    return validateToken(token, String.valueOf(notificationId), subscriptionId, remove);
+  }
+
+  public String validateToken(String token, String objectId, String subscriptionId, boolean remove) {
+    if (StringUtils.isBlank(token) || StringUtils.isBlank(subscriptionId) || StringUtils.isBlank(objectId)) {
       return null;
     }
-    String tokenType = buildTokenType(notificationId, subscriptionId);
+    String tokenType = buildTokenType(objectId, subscriptionId);
     PortalToken portalToken = remove ? super.deleteToken(token, tokenType) : super.getToken(token, tokenType);
     if (portalToken == null) {
       return null;
@@ -98,7 +126,7 @@ public class PwaNotificationTokenService extends CookieTokenService { // NOSONAR
 
   public void deleteNotificationToken(String token, long notificationId, String subscriptionId) {
     if (StringUtils.isNotBlank(token) && StringUtils.isNotBlank(subscriptionId)) {
-      super.deleteToken(token, buildTokenType(notificationId, subscriptionId));
+      super.deleteToken(token, buildTokenType(String.valueOf(notificationId), subscriptionId));
     }
   }
 
@@ -109,7 +137,11 @@ public class PwaNotificationTokenService extends CookieTokenService { // NOSONAR
   }
 
   protected String buildTokenType(long notificationId, String subscriptionId) {
-    return TOKEN_TYPE_PREFIX + ":" + scopeHash(notificationId, subscriptionId);
+    return buildTokenType(String.valueOf(notificationId), subscriptionId);
+  }
+
+  protected String buildTokenType(String objectId, String subscriptionId) {
+    return TOKEN_TYPE_PREFIX + ":" + scopeHash(objectId, subscriptionId);
   }
 
   private static InitParams initParams() {
@@ -128,10 +160,11 @@ public class PwaNotificationTokenService extends CookieTokenService { // NOSONAR
     return initParams;
   }
 
-  private String scopeHash(long notificationId, String subscriptionId) {
+  private String scopeHash(String objectId, String subscriptionId) {
     try {
       MessageDigest digest = MessageDigest.getInstance("SHA-256");
-      byte[] hash = digest.digest((notificationId + ":" + subscriptionId).getBytes(StandardCharsets.UTF_8));
+      // same input as the historical (long notificationId + ":" + subscriptionId): existing tokens keep validating
+      byte[] hash = digest.digest((objectId + ":" + subscriptionId).getBytes(StandardCharsets.UTF_8));
       return Base64.getUrlEncoder().withoutPadding().encodeToString(hash);
     } catch (NoSuchAlgorithmException e) {
       throw new IllegalStateException("SHA-256 algorithm is not available", e);

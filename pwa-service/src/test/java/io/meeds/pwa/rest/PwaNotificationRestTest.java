@@ -1,6 +1,9 @@
 package io.meeds.pwa.rest;
 
 import static io.meeds.pwa.service.PwaNotificationService.PWA_NOTIFICATION_MARK_READ_USER_ACTION;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 
 /**
@@ -309,6 +312,27 @@ public class PwaNotificationRestTest {
   private RequestPostProcessor testSimpleUser() {
     return user(SIMPLE_USER).password(TEST_PASSWORD)
                             .authorities(new SimpleGrantedAuthority("users"));
+  }
+
+
+  @Test
+  void handleDirectNotificationAction() throws Exception {
+    String body = "{\"action\":\"markRead\",\"data\":{\"objectId\":\"chat:!room\",\"roomId\":\"!room\"}}";
+    mockMvc.perform(patch(REST_PATH + "/direct/chat/push").header("Authorization", "PWA-Notification token=t,subscriptionId=s,timestamp=1,proof=p")
+                                                         .content(body)
+                                                         .contentType(MediaType.APPLICATION_JSON))
+           .andExpect(status().isNoContent());
+    verify(pwaNotificationService).handleDirectNotificationAction(eq("chat"), eq("markRead"), any(), anyString());
+
+    doThrow(new IllegalAccessException("bad proof")).when(pwaNotificationService)
+                                                    .handleDirectNotificationAction(eq("chat"), eq("markRead"), any(), any());
+    mockMvc.perform(patch(REST_PATH + "/direct/chat/push").content(body).contentType(MediaType.APPLICATION_JSON))
+           .andExpect(status().isForbidden());
+
+    doThrow(new IllegalArgumentException("pwa.directNotification.unknownKind")).when(pwaNotificationService)
+                                                                              .handleDirectNotificationAction(eq("news"), any(), any(), any());
+    mockMvc.perform(patch(REST_PATH + "/direct/news/push").content(body).contentType(MediaType.APPLICATION_JSON))
+           .andExpect(status().isBadRequest());
   }
 
 }
