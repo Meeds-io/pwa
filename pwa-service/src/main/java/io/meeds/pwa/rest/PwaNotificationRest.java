@@ -31,13 +31,16 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import org.exoplatform.commons.exception.ObjectNotFoundException;
 
 import io.meeds.pwa.model.PwaNotificationMessage;
+import io.meeds.pwa.rest.model.DirectNotificationActionRequest;
 import io.meeds.pwa.service.PwaNotificationService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -94,6 +97,38 @@ public class PwaNotificationRest {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
     } catch (IllegalAccessException e) {
       throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage());
+    }
+  }
+
+  @PatchMapping(path = "direct/{kind}/push", consumes = MediaType.APPLICATION_JSON_VALUE)
+  @Operation(summary = "Handles a quick action of a direct notification from push token",
+             description = "Authenticates the device with its PWA-Notification token and HMAC proof, then dispatches the action to the plugin of the notification kind",
+             method = "PATCH")
+  @ApiResponses(value = {
+    @ApiResponse(responseCode = "204", description = "Action handled"),
+    @ApiResponse(responseCode = "400", description = "Invalid action, data or kind"),
+    @ApiResponse(responseCode = "403", description = "Device not authenticated"),
+    @ApiResponse(responseCode = "404", description = "Target object not found"),
+  })
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void handleDirectNotificationAction(@Parameter(description = "The direct notification kind, e.g. chat")
+                                             @PathVariable("kind")
+                                             String kind,
+                                             @RequestBody
+                                             DirectNotificationActionRequest actionRequest,
+                                             @RequestHeader(value = "Authorization", required = false)
+                                             String authorizationHeader) {
+    try {
+      pwaNotificationService.handleDirectNotificationAction(kind,
+                                                            actionRequest == null ? null : actionRequest.getAction(),
+                                                            actionRequest == null ? null : actionRequest.getData(),
+                                                            authorizationHeader);
+    } catch (ObjectNotFoundException e) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+    } catch (IllegalAccessException e) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage());
+    } catch (IllegalArgumentException e) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
     }
   }
 
