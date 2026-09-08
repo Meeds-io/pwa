@@ -70,6 +70,7 @@ import io.meeds.pwa.model.PwaNotificationMessage;
 import io.meeds.pwa.model.UserPushSubscription;
 import io.meeds.pwa.plugin.DefaultPwaNotificationPlugin;
 import io.meeds.pwa.plugin.PwaBadgePlugin;
+import io.meeds.pwa.plugin.PwaDirectNotificationActionPlugin;
 import io.meeds.pwa.plugin.PwaNotificationPlugin;
 import io.meeds.pwa.storage.PwaNotificationStorage;
 
@@ -137,6 +138,14 @@ public class PwaNotificationService {
    * any domain that needs a push without a stored web notification.
    */
   public static final String           DIRECT_NOTIFICATION                           = "DIRECT_NOTIFICATION";
+
+  public static final String           DIRECT_KIND_DATA                              = "kind";
+
+  public static final String           DIRECT_OBJECT_ID_DATA                         = "objectId";
+
+  public static final String           DIRECT_TOKEN_DATA                             = "token";
+
+  public static final String           DIRECT_SUBSCRIPTION_ID_DATA                   = "subscriptionId";
 
   public static final String           EVENT_USERNAME_PARAM_NAME                     = "username";
 
@@ -235,6 +244,9 @@ public class PwaNotificationService {
 
   @Autowired(required = false)
   private List<PwaBadgePlugin>         badgePlugins                                  = Collections.emptyList();
+
+  @Autowired(required = false)
+  private List<PwaDirectNotificationActionPlugin> directActionPlugins              = Collections.emptyList();
 
   private ScheduledExecutorService     executorService;
 
@@ -483,7 +495,11 @@ public class PwaNotificationService {
    *          "chat")
    * @param defaultDelaySeconds delay when the device defines none
    * @param messageBuilder produces the notification at fire time per device,
-   *          or null to cancel that device's send
+   *          or null to cancel that device's send. An actionable notification
+   *          (with {@code actions}) must set {@code tag} to the key of the
+   *          object the actions target: the per-device action token is scoped
+   *          to {@code kind:tag} and the action plugin receives that key as
+   *          the only trusted target.
    */
   public void scheduleDirectNotification(String username,
                                          String notificationKind,
@@ -549,6 +565,7 @@ public class PwaNotificationService {
       }
       // platform-level display defaults, applied like the web-notification path
       message.setRequireInteraction(requireInteraction);
+      addDirectActionCredentials(username, subscription, notificationKind, message);
       String payload = DIRECT_NOTIFICATION + ":" + toDirectPayload(message);
       HttpResponse httpResponse = sendPushMessage(subscription, payload.getBytes(StandardCharsets.UTF_8));
       StatusLine status = httpResponse.getStatusLine();
@@ -578,6 +595,133 @@ public class PwaNotificationService {
     } catch (Exception e) {
       log.warn("Error handling direct push send failure for subscription {}", subscriptionId, e);
     }
+  }
+
+  /**
+   * A direct notification carrying quick actions gets a per-device token so
+   * the service worker can call back without a session — the same
+   * PWA-Notification token + HMAC-proof scheme as stored web notifications,
+   * scoped to the notification's object key instead of a stored row id.
+   */
+  private void addDirectActionCredentials(String username,
+                                          UserPushSubscription subscription,
+                                          String notificationKind,
+                                          PwaNotificationMessage message) {
+    if (CollectionUtils.isEmpty(message.getActions()) || StringUtils.isBlank(subscription.getPushDeviceSecret())) {
+      return;
+    }
+    if (StringUtils.isBlank(message.getTag())) {
+      // the tag is the object the token is scoped to and the action targets:
+      // without it a token would cover every popup of the kind — no credentials
+      log.debug("Direct notification of kind {} has actions but no tag: actions will not be actionable", notificationKind);
+      return;
+    }
+    String objectId = directObjectId(notificationKind, message);
+    String token = pwaNotificationTokenService.createToken(username, objectId, subscription.getId());
+    Map<String, String> data = message.getData() == null ? new HashMap<>() : new HashMap<>(message.getData());
+    data.put(DIRECT_KIND_DATA, notificationKind);
+    data.put(DIRECT_OBJECT_ID_DATA, objectId);
+    data.put(DIRECT_TOKEN_DATA, token);
+    data.put(DIRECT_SUBSCRIPTION_ID_DATA, subscription.getId());
+    message.setData(data);
+  }
+
+  private String directObjectId(String notificationKind, PwaNotificationMessage message) {
+    return notificationKind + ":" + StringUtils.defaultString(message.getTag());
+  }
+
+  /**
+   * Handles a quick action triggered on a direct notification from a device
+   * without a session: authenticates the device through its token and HMAC
+   * proof, then dispatches to the plugin of the notification kind.
+   *
+   * @param notificationKind the direct-notification kind (e.g. "chat")
+   * @param action the action id (e.g. "markRead")
+   * @param data the notification data as delivered to the device (must carry
+   *          the object id the token was scoped to)
+   * @param authorizationHeader the {@code PWA-Notification} header
+   * @throws ObjectNotFoundException from the plugin
+   * @throws IllegalAccessException when the device cannot be authenticated or
+   *           the plugin refuses the action
+   */
+  public void handleDirectNotificationAction(String notificationKind,
+                                             String action,
+                                             Map<String, String> data,
+                                             String authorizationHeader) throws ObjectNotFoundException,
+                                                                         IllegalAccessException {
+    if (StringUtils.isBlank(action) || data == null || StringUtils.isBlank(data.get(DIRECT_OBJECT_ID_DATA))) {
+      throw new IllegalArgumentException("pwa.directNotification.invalidAction");
+    }
+    String objectId = data.get(DIRECT_OBJECT_ID_DATA);
+    String kindPrefix = notificationKind + ":";
+    if (!StringUtils.startsWith(objectId, kindPrefix)) {
+      throw new IllegalAccessException("Direct notification object does not belong to kind " + notificationKind);
+    }
+    // resolve the handler before touching the single-use token: an unknown
+    // kind must not burn the device's credential
+    PwaDirectNotificationActionPlugin plugin = directActionPlugins.stream()
+                                                                  .filter(p -> StringUtils.equals(p.getNotificationKind(),
+                                                                                                  notificationKind))
+                                                                  .findFirst()
+                                                                  .orElseThrow(() -> new IllegalArgumentException("pwa.directNotification.unknownKind"));
+    String username = validateDirectNotificationAccess(objectId, authorizationHeader, false);
+    // the token binds the object: the action target is the scoped key, never
+    // a value echoed by the device
+    plugin.handleAction(username, action, StringUtils.removeStart(objectId, kindPrefix), data);
+    // single use, consumed once the action succeeded (a failed action keeps
+    // the credential usable for a retry)
+    validateDirectNotificationAccess(objectId, authorizationHeader, true);
+  }
+
+  /**
+   * Authenticates a session-less device request against a direct
+   * notification's object: same checks as the stored-notification path
+   * (parameters, freshness window, token scope, HMAC proof with the device
+   * secret, owner match on consumption), scoped to a string object id.
+   *
+   * @return the authenticated username
+   */
+  public String validateDirectNotificationAccess(String objectId,
+                                                 String authorizationHeader,
+                                                 boolean consume) throws IllegalAccessException {
+    Map<String, String> parameters = parsePushAuthorizationHeader(authorizationHeader);
+    String token = parameters.get(PUSH_TOKEN_PARAM);
+    String subscriptionId = parameters.get(SUBSCRIPTION_ID_PARAM);
+    String timestamp = parameters.get(TIMESTAMP_PARAM);
+    String proof = parameters.get(PROOF_PARAM);
+    if (StringUtils.isAnyBlank(token, subscriptionId, timestamp, proof)) {
+      throw new IllegalAccessException("Missing push authorization parameters");
+    }
+    long timestampValue;
+    try {
+      timestampValue = Long.parseLong(timestamp);
+    } catch (NumberFormatException e) {
+      throw new IllegalAccessException("Invalid push authorization timestamp");
+    }
+    long now = System.currentTimeMillis();
+    if (Math.abs(now - timestampValue) > TimeUnit.SECONDS.toMillis(pushTokenTtlSeconds)) {
+      throw new IllegalAccessException("Expired push authorization proof");
+    }
+    String username = pwaNotificationTokenService.validateToken(token, objectId, subscriptionId);
+    if (StringUtils.isBlank(username)) {
+      throw new IllegalAccessException("Invalid push notification token");
+    }
+    UserPushSubscription subscription = pwaSubscriptionService.getSubscription(username, subscriptionId);
+    if (subscription == null || StringUtils.isBlank(subscription.getPushDeviceSecret())) {
+      throw new IllegalAccessException("Unknown push subscription");
+    }
+    String expectedProof = computeHmac(subscription.getPushDeviceSecret(),
+                                       objectId + ":" + token + ":" + subscriptionId + ":" + timestamp);
+    if (!MessageDigest.isEqual(expectedProof.getBytes(StandardCharsets.UTF_8), proof.getBytes(StandardCharsets.UTF_8))) {
+      throw new IllegalAccessException("Invalid push authorization proof");
+    }
+    if (consume) {
+      String consumedUsername = pwaNotificationTokenService.consumeToken(token, objectId, subscriptionId);
+      if (!StringUtils.equals(username, consumedUsername)) {
+        throw new IllegalAccessException("Push notification token already consumed");
+      }
+    }
+    return username;
   }
 
   private String toDirectPayload(PwaNotificationMessage message) throws JsonProcessingException {
