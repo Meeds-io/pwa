@@ -37,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.longThat;
@@ -91,6 +92,8 @@ import org.exoplatform.services.resources.impl.LocaleConfigImpl;
 import io.meeds.pwa.model.DeviceNotificationSetting;
 import io.meeds.pwa.model.PwaDirectNotificationBuilder;
 import io.meeds.pwa.model.PwaNotificationMessage;
+import io.meeds.pwa.model.PwaNotificationAction;
+import io.meeds.pwa.plugin.PwaDirectNotificationActionPlugin;
 import io.meeds.pwa.model.UserPushSubscription;
 import io.meeds.pwa.plugin.DefaultPwaNotificationPlugin;
 import io.meeds.pwa.storage.PwaNotificationStorage;
@@ -160,6 +163,9 @@ public class PwaNotificationServiceTest {
 
   @MockitoBean
   private PwaNotificationTokenService  pwaNotificationTokenService;
+
+  @MockitoBean
+  private PwaDirectNotificationActionPlugin directNotificationActionPlugin;
 
   @Autowired
   private PwaNotificationService       pwaNotificationService;
@@ -726,6 +732,110 @@ public class PwaNotificationServiceTest {
   }
 
   @Test
+  public void fireDirectNotificationAddsActionCredentialsOnlyWhenActionsAndSecret() throws Exception { // NOSONAR
+    ScheduledExecutorService originalExecutor =
+                                              (ScheduledExecutorService) ReflectionTestUtils.getField(pwaNotificationService,
+                                                                                                      "executorService");
+    ScheduledExecutorService executorService = mock(ScheduledExecutorService.class);
+    ReflectionTestUtils.setField(pwaNotificationService, "executorService", executorService);
+    try {
+      when(pwaManifestService.isPwaEnabled()).thenReturn(true);
+      mockSubscription(true);
+      when(pwaNotificationTokenService.createToken(TEST_USER, "chat:!room:server", SUBSCRIPTION_ID)).thenReturn(PUSH_ACCESS_TOKEN);
+      when(pushService.send(any())).thenReturn(httpResponse);
+      when(httpResponse.getStatusLine()).thenReturn(statusLine);
+      when(statusLine.getStatusCode()).thenReturn(201);
+
+      PwaDirectNotificationBuilder builder = subscriptionId -> {
+        PwaNotificationMessage message = new PwaNotificationMessage();
+        message.setTitle("John in General");
+        message.setTag("!room:server");
+        message.setData(new HashMap<>(Map.of("roomId", "!room:server")));
+        message.setActions(List.of(new PwaNotificationAction("Mark as read", "markRead")));
+        return message;
+      };
+      pwaNotificationService.scheduleDirectNotification(TEST_USER, "chat", 60l, builder);
+      ArgumentCaptor<Runnable> fire = ArgumentCaptor.forClass(Runnable.class);
+      verify(executorService).schedule(fire.capture(), eq(60l), eq(TimeUnit.SECONDS));
+      fire.getValue().run();
+
+      ArgumentCaptor<Notification> pushCaptor = ArgumentCaptor.forClass(Notification.class);
+      verify(pushService).send(pushCaptor.capture());
+      String json = new String(pushCaptor.getValue().getPayload(), StandardCharsets.UTF_8);
+      // the device gets a token scoped to (kind:tag, device) plus what it needs to prove itself
+      assertTrue(json.contains("\"token\":\"" + PUSH_ACCESS_TOKEN + "\""));
+      assertTrue(json.contains("\"objectId\":\"chat:!room:server\""));
+      assertTrue(json.contains("\"kind\":\"chat\""));
+      assertTrue(json.contains("\"subscriptionId\":\"" + SUBSCRIPTION_ID + "\""));
+      assertTrue(json.contains("\"roomId\":\"!room:server\""));
+
+      // no actions: no token minted, payload stays lean
+      {
+        PwaDirectNotificationBuilder plain = subscriptionId -> {
+          PwaNotificationMessage message = new PwaNotificationMessage();
+          message.setTitle("plain");
+          message.setTag("!room:server");
+          return message;
+        };
+        pwaNotificationService.scheduleDirectNotification(TEST_USER, "chat", 60l, plain);
+        verify(executorService, times(2)).schedule(fire.capture(), eq(60l), eq(TimeUnit.SECONDS));
+        fire.getValue().run();
+        verify(pwaNotificationTokenService, times(1)).createToken(anyString(), anyString(), anyString());
+      }
+    } finally {
+      ReflectionTestUtils.setField(pwaNotificationService, "executorService", originalExecutor);
+    }
+  }
+
+  @Test
+  public void handleDirectNotificationActionAuthenticatesAndDispatches() throws Exception { // NOSONAR
+    mockSubscription(true);
+    String objectId = "chat:!room:server";
+    long timestamp = System.currentTimeMillis();
+    String proof = computeHmac(objectId, PUSH_ACCESS_TOKEN, SUBSCRIPTION_ID, timestamp);
+    String header = buildAuthorizationHeader(PUSH_ACCESS_TOKEN, SUBSCRIPTION_ID, timestamp, proof);
+    when(pwaNotificationTokenService.validateToken(PUSH_ACCESS_TOKEN, objectId, SUBSCRIPTION_ID)).thenReturn(TEST_USER);
+    when(pwaNotificationTokenService.consumeToken(PUSH_ACCESS_TOKEN, objectId, SUBSCRIPTION_ID)).thenReturn(TEST_USER);
+    when(directNotificationActionPlugin.getNotificationKind()).thenReturn("chat");
+    Map<String, String> data = Map.of("objectId", objectId, "roomId", "!room:server", "eventId", "$evt");
+
+    pwaNotificationService.handleDirectNotificationAction("chat", "markRead", data, header);
+    // the target handed to the plugin is the token-scoped object, not the echoed roomId
+    verify(directNotificationActionPlugin).handleAction(TEST_USER, "markRead", "!room:server", data);
+    verify(pwaNotificationTokenService).consumeToken(PUSH_ACCESS_TOKEN, objectId, SUBSCRIPTION_ID);
+
+    // object of another kind, bad proof, missing object id
+    assertThrows(IllegalAccessException.class,
+                 () -> pwaNotificationService.handleDirectNotificationAction("news", "markRead", data, header));
+    String badHeader = buildAuthorizationHeader(PUSH_ACCESS_TOKEN, SUBSCRIPTION_ID, timestamp, "bad-proof");
+    assertThrows(IllegalAccessException.class,
+                 () -> pwaNotificationService.handleDirectNotificationAction("chat", "markRead", data, badHeader));
+    assertThrows(IllegalArgumentException.class,
+                 () -> pwaNotificationService.handleDirectNotificationAction("chat", "markRead", Map.of("roomId", "!r"), header));
+
+    // an unknown kind is rejected BEFORE the single-use token is touched
+    Map<String, String> newsData = Map.of("objectId", "news:42");
+    String newsHeader = buildAuthorizationHeader(PUSH_ACCESS_TOKEN, SUBSCRIPTION_ID, timestamp,
+                                                 computeHmac("news:42", PUSH_ACCESS_TOKEN, SUBSCRIPTION_ID, timestamp));
+    assertThrows(IllegalArgumentException.class,
+                 () -> pwaNotificationService.handleDirectNotificationAction("news", "markRead", newsData, newsHeader));
+    verify(pwaNotificationTokenService, never()).consumeToken(PUSH_ACCESS_TOKEN, "news:42", SUBSCRIPTION_ID);
+
+    // validator negatives: missing header, expired timestamp, consumed by someone else
+    assertThrows(IllegalAccessException.class,
+                 () -> pwaNotificationService.validateDirectNotificationAccess(objectId, null, false));
+    int tokenTtlSeconds = (int) ReflectionTestUtils.getField(pwaNotificationService, "pushTokenTtlSeconds");
+    long staleTimestamp = timestamp - TimeUnit.SECONDS.toMillis(tokenTtlSeconds) - 1000;
+    String staleHeader = buildAuthorizationHeader(PUSH_ACCESS_TOKEN, SUBSCRIPTION_ID, staleTimestamp,
+                                                  computeHmac(objectId, PUSH_ACCESS_TOKEN, SUBSCRIPTION_ID, staleTimestamp));
+    assertThrows(IllegalAccessException.class,
+                 () -> pwaNotificationService.validateDirectNotificationAccess(objectId, staleHeader, false));
+    when(pwaNotificationTokenService.consumeToken(PUSH_ACCESS_TOKEN, objectId, SUBSCRIPTION_ID)).thenReturn("someoneElse");
+    assertThrows(IllegalAccessException.class,
+                 () -> pwaNotificationService.validateDirectNotificationAccess(objectId, header, true));
+  }
+
+  @Test
   public void createSkipsPushExcludedPlugin() throws Exception { // NOSONAR
     assertFalse(pwaNotificationService.isPluginExcludedFromPush("ExcludedPlugin"));
     pwaNotificationService.excludePluginFromPush("ExcludedPlugin");
@@ -787,6 +897,13 @@ public class PwaNotificationServiceTest {
   private String buildAuthorizationHeader(String token, String subscriptionId, long timestamp, String proof) {
     return PUSH_AUTH_SCHEME + " token=\"" + token + "\"," + "subscriptionId=\"" + subscriptionId + "\"," + "timestamp=\"" +
         timestamp + "\"," + "proof=\"" + proof + "\"";
+  }
+
+  private String computeHmac(String objectId, String token, String subscriptionId, long timestamp) throws Exception { // NOSONAR
+    Mac mac = Mac.getInstance("HmacSHA256");
+    mac.init(new SecretKeySpec(Base64.getDecoder().decode(PUSH_DEVICE_SECRET), "HmacSHA256"));
+    String value = objectId + ":" + token + ":" + subscriptionId + ":" + timestamp;
+    return Base64.getUrlEncoder().withoutPadding().encodeToString(mac.doFinal(value.getBytes(StandardCharsets.UTF_8)));
   }
 
   private String computeHmac(String token, String subscriptionId, long timestamp) throws Exception { // NOSONAR

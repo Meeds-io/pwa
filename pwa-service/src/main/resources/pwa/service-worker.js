@@ -266,6 +266,8 @@ self.addEventListener('notificationclick', event => {
       if (event.action) {
         if(!notificationType || notificationType === 'WEB_NOTIFICATION') {
           await updateNotification(notificationId, event.action, notificationAccessToken, subscriptionId);
+        } else if (notificationType === 'DIRECT_NOTIFICATION') {
+          await handleDirectNotificationAction(event.action, event?.notification?.data);
         }
       } else if (clients && 'openWindow' in clients && 'matchAll' in clients) {
         const windowClients = await clients.matchAll({
@@ -351,6 +353,33 @@ async function reportPushDeliveryDelay(notificationId, notificationAccessToken, 
     });
   } catch (e) {
     console.error(e);
+  }
+}
+
+async function handleDirectNotificationAction(action, data) {
+  // the token was scoped to the notification's object id and this device:
+  // same PWA-Notification proof as stored notifications, object id in place
+  // of the notification id
+  const authorizationHeader = data?.objectId && data?.kind
+    && await getPushAuthorizationHeader(data.objectId, data.token, data.subscriptionId);
+  if (!authorizationHeader) {
+    return;
+  }
+  try {
+    const { url, type, ...notificationData } = data;
+    await fetch(`/pwa/rest/notifications/direct/${encodeURIComponent(data.kind)}/push`, {
+      method: 'PATCH',
+      credentials: 'omit',
+      headers: {
+        'Authorization': authorizationHeader,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ action, data: notificationData }),
+    });
+  } catch (e) {
+    console.error(e);
+  } finally {
+    await refreshBadge();
   }
 }
 
