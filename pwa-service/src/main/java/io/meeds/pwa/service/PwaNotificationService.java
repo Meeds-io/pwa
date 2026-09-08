@@ -147,6 +147,16 @@ public class PwaNotificationService {
 
   public static final String           DIRECT_SUBSCRIPTION_ID_DATA                   = "subscriptionId";
 
+  /**
+   * Optional {@code data} key of a direct notification: the name of a DOM
+   * event the service worker asks the focused app page to dispatch on click
+   * (detail = the notification data) instead of navigating it — the page
+   * keeps its state. A listener owning the action calls
+   * {@code preventDefault()}; unclaimed, the notification url is followed, as
+   * it is when no app page is open.
+   */
+  public static final String           DIRECT_CLIENT_ACTION_DATA                     = "clientAction";
+
   public static final String           EVENT_USERNAME_PARAM_NAME                     = "username";
 
   public static final String           EVENT_DURATION_PARAM_NAME                     = "duration";
@@ -499,7 +509,9 @@ public class PwaNotificationService {
    *          (with {@code actions}) must set {@code tag} to the key of the
    *          object the actions target: the per-device action token is scoped
    *          to {@code kind:tag} and the action plugin receives that key as
-   *          the only trusted target.
+   *          the only trusted target. A {@link #DIRECT_CLIENT_ACTION_DATA}
+   *          entry in {@code data} makes a click act in the open page rather
+   *          than navigate it.
    */
   public void scheduleDirectNotification(String username,
                                          String notificationKind,
