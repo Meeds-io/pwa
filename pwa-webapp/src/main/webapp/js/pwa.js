@@ -25,6 +25,7 @@
   const pushVersion = 'v1.0';
   const minBadgeRefreshInterval = 60000;
   let lastBadgeRefreshTime = 0;
+  let listeningToServiceWorker = false;
 
   if (!isPwaDisplay()
     && 'onbeforeinstallprompt' in window
@@ -75,6 +76,11 @@
 
   async function init() {
     initBadgeRefreshListeners();
+    if (eXo?.env?.portal?.userName && 'serviceWorker' in navigator) {
+      // every app page, installed or not: a notification click may be handed
+      // to whichever page is the most recently focused
+      listenToServiceWorkerMessages();
+    }
     if (isPwaDisplay()
       && eXo?.env?.portal?.userName
       && eXo?.env?.portal?.pwaEnabled
@@ -184,6 +190,35 @@
     }}));
   }
 
+  function listenToServiceWorkerMessages() {
+    if (listeningToServiceWorker) {
+      // init() runs from two head templates on a full page
+      return;
+    }
+    listeningToServiceWorker = true;
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event?.data?.action === 'redirect-path'
+         && event.data.url?.includes(window.location.origin)) {
+        window.location.href = event.data.url;
+      } else if (event?.data?.action === 'client-action' && event.data.clientAction) {
+        // a page listener owning the action calls preventDefault(); the
+        // service worker navigates the page when nothing claims it
+        const handled = !document.dispatchEvent(new CustomEvent(event.data.clientAction, {
+          cancelable: true,
+          detail: event.data.data,
+        }));
+        const replyPort = event.ports?.[0];
+        if (replyPort) {
+          replyPort.postMessage({ handled });
+        } else if (!handled && event.data.url?.startsWith(`${window.location.origin}/`)) {
+          window.location.href = event.data.url;
+        }
+      }
+    });
+    // deliver messages queued before this listener existed
+    navigator.serviceWorker.startMessages?.();
+  }
+
   async function initSubscription() {
     try {
       let registration = await navigator.serviceWorker.getRegistration();
@@ -211,13 +246,6 @@
             resolve();
           })();
         });
-      });
-
-      navigator.serviceWorker.addEventListener('message', (event) => {
-        if (event?.data?.action === 'redirect-path'
-           && event.data.url?.includes(window.location.origin)) {
-          window.location.href = event.data.url;
-        }
       });
 
       if (!('PushManager' in window) || !('Notification' in window)) {

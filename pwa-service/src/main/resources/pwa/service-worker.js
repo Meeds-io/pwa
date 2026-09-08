@@ -44,6 +44,8 @@ const pushDeviceStoreName = 'secrets';
 const pushDeviceSecretKeyPrefix = 'push-device-secret-';
 const pushAuthScheme = 'PWA-Notification';
 const badgeUrl = '/pwa/rest/notifications/badge';
+// how long a focused app page has to claim a notification's client action
+const CLIENT_ACTION_ACK_TIMEOUT_MS = 2000;
 
 const checkCache = async () => {
   const version = await getCacheVersion();
@@ -285,7 +287,14 @@ self.addEventListener('notificationclick', event => {
           }
         }
 
-        if (matchingClient?.navigate && matchingClient?.focus) {
+        const clientAction = event?.notification?.data?.clientAction;
+        // the notification names an in-page action: hand it to the most
+        // recently focused app page instead of navigating it (a reload); a
+        // page that does not confirm it owns the action is navigated as before
+        if (clientAction && matchingClient?.focus
+            && await postClientAction(matchingClient, clientAction, url, event.notification.data)) {
+          // the page owns the action
+        } else if (matchingClient?.navigate && matchingClient?.focus) {
           try {
             await matchingClient.focus();
             try {
@@ -354,6 +363,36 @@ async function reportPushDeliveryDelay(notificationId, notificationAccessToken, 
   } catch (e) {
     console.error(e);
   }
+}
+
+/**
+ * Posts a client action to an app page and waits for it to say whether a
+ * listener claimed it. False when the page does not answer in time — a page
+ * without the listener (older script, login page, non-HTML client) or still
+ * loading — so the caller falls back to navigating it.
+ */
+async function postClientAction(client, clientAction, url, data) {
+  try {
+    await client.focus();
+  } catch (e) {
+    return false;
+  }
+  // the action token is for the service worker's own action calls only
+  const { token, ...actionData } = data || {};
+  return new Promise(resolve => {
+    const channel = new MessageChannel();
+    const timer = setTimeout(() => resolve(false), CLIENT_ACTION_ACK_TIMEOUT_MS);
+    channel.port1.onmessage = ackEvent => {
+      clearTimeout(timer);
+      resolve(!!ackEvent?.data?.handled);
+    };
+    client.postMessage({
+      action: 'client-action',
+      clientAction,
+      url,
+      data: actionData,
+    }, [channel.port2]);
+  });
 }
 
 async function handleDirectNotificationAction(action, data) {
