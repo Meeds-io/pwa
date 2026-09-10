@@ -91,11 +91,11 @@ import org.exoplatform.services.resources.impl.LocaleConfigImpl;
 
 import io.meeds.pwa.model.DeviceNotificationSetting;
 import io.meeds.pwa.model.PwaDirectNotificationBuilder;
-import io.meeds.pwa.model.PwaNotificationMessage;
 import io.meeds.pwa.model.PwaNotificationAction;
-import io.meeds.pwa.plugin.PwaDirectNotificationActionPlugin;
+import io.meeds.pwa.model.PwaNotificationMessage;
 import io.meeds.pwa.model.UserPushSubscription;
 import io.meeds.pwa.plugin.DefaultPwaNotificationPlugin;
+import io.meeds.pwa.plugin.PwaDirectNotificationActionPlugin;
 import io.meeds.pwa.storage.PwaNotificationStorage;
 
 import lombok.SneakyThrows;
@@ -108,6 +108,12 @@ import nl.martijndwars.webpush.PushService;
 @TestPropertySource(properties = {
   "pwa.notifications.push.token.ttl.excessiveDelayThreshold=30",
 })
+/*
+ * The push wire itself is never exercised here: PushService is mocked, so VAPID
+ * encryption, the delivery to a browser push service and the service worker's
+ * showNotification contract are covered only by a manual run on the acceptance
+ * server. These tests pin the payload and the decisions around it, not delivery.
+ */
 public class PwaNotificationServiceTest {
 
   private static final String          DELAY_MS_KEY          = "delayMs";
@@ -217,8 +223,8 @@ public class PwaNotificationServiceTest {
   public void getNotificationFromPush() throws Exception { // NOSONAR
     String[] payloadParts = createPushNotificationAndGetPayloadParts(true);
     String token = payloadParts[3];
-    when(pwaNotificationTokenService.validateToken(token, NOTIFICATION_ID, SUBSCRIPTION_ID)).thenReturn(TEST_USER);
-    when(pwaNotificationTokenService.consumeToken(token, NOTIFICATION_ID, SUBSCRIPTION_ID)).thenReturn(TEST_USER);
+    when(pwaNotificationTokenService.validateToken(token, String.valueOf(NOTIFICATION_ID), SUBSCRIPTION_ID)).thenReturn(TEST_USER);
+    when(pwaNotificationTokenService.consumeToken(token, String.valueOf(NOTIFICATION_ID), SUBSCRIPTION_ID)).thenReturn(TEST_USER);
     String authorizationHeader = buildAuthorizationHeader(token, SUBSCRIPTION_ID, System.currentTimeMillis());
     mockUserLanguage();
     when(pwaSubscriptionService.getSubscription(TEST_USER, SUBSCRIPTION_ID)).thenReturn(userPushSubscription);
@@ -243,8 +249,8 @@ public class PwaNotificationServiceTest {
                                                                                    TEST_USER);
 
     assertEquals(notificationMessage, result);
-    verify(pwaNotificationTokenService, never()).validateToken(any(), eq(NOTIFICATION_ID), any());
-    verify(pwaNotificationTokenService, never()).consumeToken(any(), eq(NOTIFICATION_ID), any());
+    verify(pwaNotificationTokenService, never()).validateToken(any(), eq(String.valueOf(NOTIFICATION_ID)), any());
+    verify(pwaNotificationTokenService, never()).consumeToken(any(), eq(String.valueOf(NOTIFICATION_ID)), any());
   }
 
   @Test
@@ -258,8 +264,8 @@ public class PwaNotificationServiceTest {
     String[] payloadParts = createPushNotificationAndGetPayloadParts(true);
     String token = payloadParts[3];
     long timestamp = System.currentTimeMillis();
-    when(pwaNotificationTokenService.validateToken(token, NOTIFICATION_ID, SUBSCRIPTION_ID)).thenReturn(TEST_USER);
-    when(pwaNotificationTokenService.consumeToken(token, NOTIFICATION_ID, SUBSCRIPTION_ID)).thenReturn(TEST_USER);
+    when(pwaNotificationTokenService.validateToken(token, String.valueOf(NOTIFICATION_ID), SUBSCRIPTION_ID)).thenReturn(TEST_USER);
+    when(pwaNotificationTokenService.consumeToken(token, String.valueOf(NOTIFICATION_ID), SUBSCRIPTION_ID)).thenReturn(TEST_USER);
     when(pwaSubscriptionService.getSubscription(TEST_USER, SUBSCRIPTION_ID)).thenReturn(userPushSubscription);
 
     assertThrows(IllegalAccessException.class,
@@ -281,8 +287,8 @@ public class PwaNotificationServiceTest {
   public void updateNotificationFromPush() throws Exception { // NOSONAR
     String[] payloadParts = createPushNotificationAndGetPayloadParts(true);
     String token = payloadParts[3];
-    when(pwaNotificationTokenService.validateToken(token, NOTIFICATION_ID, SUBSCRIPTION_ID)).thenReturn(TEST_USER);
-    when(pwaNotificationTokenService.consumeToken(token, NOTIFICATION_ID, SUBSCRIPTION_ID)).thenReturn(TEST_USER);
+    when(pwaNotificationTokenService.validateToken(token, String.valueOf(NOTIFICATION_ID), SUBSCRIPTION_ID)).thenReturn(TEST_USER);
+    when(pwaNotificationTokenService.consumeToken(token, String.valueOf(NOTIFICATION_ID), SUBSCRIPTION_ID)).thenReturn(TEST_USER);
     String authorizationHeader = buildAuthorizationHeader(token, SUBSCRIPTION_ID, System.currentTimeMillis());
     when(pwaSubscriptionService.getSubscription(TEST_USER, SUBSCRIPTION_ID)).thenReturn(userPushSubscription);
 
@@ -304,15 +310,15 @@ public class PwaNotificationServiceTest {
                                                       TEST_USER);
 
     verify(webNotificationService).markRead(String.valueOf(NOTIFICATION_ID));
-    verify(pwaNotificationTokenService, never()).validateToken(any(), eq(NOTIFICATION_ID), any());
-    verify(pwaNotificationTokenService, never()).consumeToken(any(), eq(NOTIFICATION_ID), any());
+    verify(pwaNotificationTokenService, never()).validateToken(any(), eq(String.valueOf(NOTIFICATION_ID)), any());
+    verify(pwaNotificationTokenService, never()).consumeToken(any(), eq(String.valueOf(NOTIFICATION_ID)), any());
   }
 
   @Test
   public void reportPushDeliveryDelay() throws Exception { // NOSONAR
     mockWebNotification();
     mockSubscription(true);
-    when(pwaNotificationTokenService.validateToken(PUSH_ACCESS_TOKEN, NOTIFICATION_ID, SUBSCRIPTION_ID)).thenReturn(TEST_USER);
+    when(pwaNotificationTokenService.validateToken(PUSH_ACCESS_TOKEN, String.valueOf(NOTIFICATION_ID), SUBSCRIPTION_ID)).thenReturn(TEST_USER);
     when(notification.getOwnerParameter()).thenReturn(null);
     long sentAt = System.currentTimeMillis() - 60000;
     long receivedAt = sentAt + 60000;
@@ -324,8 +330,8 @@ public class PwaNotificationServiceTest {
                                                    sentAt,
                                                    receivedAt);
 
-    verify(pwaNotificationTokenService).validateToken(PUSH_ACCESS_TOKEN, NOTIFICATION_ID, SUBSCRIPTION_ID);
-    verify(pwaNotificationTokenService, never()).consumeToken(PUSH_ACCESS_TOKEN, NOTIFICATION_ID, SUBSCRIPTION_ID);
+    verify(pwaNotificationTokenService).validateToken(PUSH_ACCESS_TOKEN, String.valueOf(NOTIFICATION_ID), SUBSCRIPTION_ID);
+    verify(pwaNotificationTokenService, never()).consumeToken(PUSH_ACCESS_TOKEN, String.valueOf(NOTIFICATION_ID), SUBSCRIPTION_ID);
     verify(pwaNotificationStorage).recordExcessivePushDeliveryDelay(eq(TEST_USER),
                                                                     eq(SUBSCRIPTION_ID),
                                                                     longThat(delay -> delay >= 30000l));
@@ -356,8 +362,8 @@ public class PwaNotificationServiceTest {
                                                    sentAt,
                                                    receivedAt);
 
-    verify(pwaNotificationTokenService, never()).validateToken(any(), eq(NOTIFICATION_ID), any());
-    verify(pwaNotificationTokenService, never()).consumeToken(any(), eq(NOTIFICATION_ID), any());
+    verify(pwaNotificationTokenService, never()).validateToken(any(), eq(String.valueOf(NOTIFICATION_ID)), any());
+    verify(pwaNotificationTokenService, never()).consumeToken(any(), eq(String.valueOf(NOTIFICATION_ID)), any());
     verify(pwaNotificationStorage).recordExcessivePushDeliveryDelay(eq(TEST_USER), eq(SUBSCRIPTION_ID), anyLong());
     verify(webNotificationService).updateNotificationParameters(eq(String.valueOf(NOTIFICATION_ID)), any());
     verify(listenerService).broadcast(PWA_NOTIFICATION_RECEIVED, userPushSubscription, notification);
@@ -491,8 +497,12 @@ public class PwaNotificationServiceTest {
     ScheduledExecutorService originalExecutor =
                                               (ScheduledExecutorService) ReflectionTestUtils.getField(pwaNotificationService,
                                                                                                       "executorService");
+    ScheduledExecutorService originalDirectExecutor =
+                                              (ScheduledExecutorService) ReflectionTestUtils.getField(pwaNotificationService,
+                                                                                                      "directExecutorService");
     ScheduledExecutorService executorService = mock(ScheduledExecutorService.class);
     ReflectionTestUtils.setField(pwaNotificationService, "executorService", executorService);
+    ReflectionTestUtils.setField(pwaNotificationService, "directExecutorService", executorService);
     try {
       // PWA disabled: nothing scheduled
       pwaNotificationService.scheduleDirectNotification(TEST_USER, "chat", 300l, builder);
@@ -521,6 +531,7 @@ public class PwaNotificationServiceTest {
       assertEquals(List.of(SUBSCRIPTION_ID), builtForSubscriptions);
     } finally {
       ReflectionTestUtils.setField(pwaNotificationService, "executorService", originalExecutor);
+      ReflectionTestUtils.setField(pwaNotificationService, "directExecutorService", originalDirectExecutor);
     }
   }
 
@@ -529,8 +540,12 @@ public class PwaNotificationServiceTest {
     ScheduledExecutorService originalExecutor =
                                               (ScheduledExecutorService) ReflectionTestUtils.getField(pwaNotificationService,
                                                                                                       "executorService");
+    ScheduledExecutorService originalDirectExecutor =
+                                              (ScheduledExecutorService) ReflectionTestUtils.getField(pwaNotificationService,
+                                                                                                      "directExecutorService");
     ScheduledExecutorService executorService = mock(ScheduledExecutorService.class);
     ReflectionTestUtils.setField(pwaNotificationService, "executorService", executorService);
+    ReflectionTestUtils.setField(pwaNotificationService, "directExecutorService", executorService);
     try {
       when(pwaManifestService.isPwaEnabled()).thenReturn(true);
       mockSubscription(false);
@@ -562,6 +577,7 @@ public class PwaNotificationServiceTest {
       verify(pwaSubscriptionService).deleteSubscription(SUBSCRIPTION_ID, TEST_USER, false);
     } finally {
       ReflectionTestUtils.setField(pwaNotificationService, "executorService", originalExecutor);
+      ReflectionTestUtils.setField(pwaNotificationService, "directExecutorService", originalDirectExecutor);
     }
   }
 
@@ -573,8 +589,12 @@ public class PwaNotificationServiceTest {
     ScheduledExecutorService originalExecutor =
                                               (ScheduledExecutorService) ReflectionTestUtils.getField(pwaNotificationService,
                                                                                                       "executorService");
+    ScheduledExecutorService originalDirectExecutor =
+                                              (ScheduledExecutorService) ReflectionTestUtils.getField(pwaNotificationService,
+                                                                                                      "directExecutorService");
     ScheduledExecutorService executorService = mock(ScheduledExecutorService.class);
     ReflectionTestUtils.setField(pwaNotificationService, "executorService", executorService);
+    ReflectionTestUtils.setField(pwaNotificationService, "directExecutorService", executorService);
     try {
       when(pwaManifestService.isPwaEnabled()).thenReturn(true);
       mockSubscription(false);
@@ -596,6 +616,7 @@ public class PwaNotificationServiceTest {
       assertTrue(payload.contains("..."));
     } finally {
       ReflectionTestUtils.setField(pwaNotificationService, "executorService", originalExecutor);
+      ReflectionTestUtils.setField(pwaNotificationService, "directExecutorService", originalDirectExecutor);
     }
   }
 
@@ -604,8 +625,12 @@ public class PwaNotificationServiceTest {
     ScheduledExecutorService originalExecutor =
                                               (ScheduledExecutorService) ReflectionTestUtils.getField(pwaNotificationService,
                                                                                                       "executorService");
+    ScheduledExecutorService originalDirectExecutor =
+                                              (ScheduledExecutorService) ReflectionTestUtils.getField(pwaNotificationService,
+                                                                                                      "directExecutorService");
     ScheduledExecutorService executorService = mock(ScheduledExecutorService.class);
     ReflectionTestUtils.setField(pwaNotificationService, "executorService", executorService);
+    ReflectionTestUtils.setField(pwaNotificationService, "directExecutorService", executorService);
     try {
       when(pwaManifestService.isPwaEnabled()).thenReturn(true);
       UserPushSubscription secondSubscription = mock(UserPushSubscription.class);
@@ -618,6 +643,7 @@ public class PwaNotificationServiceTest {
       verify(executorService, times(2)).schedule(any(Runnable.class), eq(300l), eq(TimeUnit.SECONDS));
     } finally {
       ReflectionTestUtils.setField(pwaNotificationService, "executorService", originalExecutor);
+      ReflectionTestUtils.setField(pwaNotificationService, "directExecutorService", originalDirectExecutor);
     }
   }
 
@@ -626,8 +652,12 @@ public class PwaNotificationServiceTest {
     ScheduledExecutorService originalExecutor =
                                               (ScheduledExecutorService) ReflectionTestUtils.getField(pwaNotificationService,
                                                                                                       "executorService");
+    ScheduledExecutorService originalDirectExecutor =
+                                              (ScheduledExecutorService) ReflectionTestUtils.getField(pwaNotificationService,
+                                                                                                      "directExecutorService");
     ScheduledExecutorService executorService = mock(ScheduledExecutorService.class);
     ReflectionTestUtils.setField(pwaNotificationService, "executorService", executorService);
+    ReflectionTestUtils.setField(pwaNotificationService, "directExecutorService", executorService);
     try {
       when(pwaManifestService.isPwaEnabled()).thenReturn(true);
       mockSubscription(false);
@@ -666,6 +696,7 @@ public class PwaNotificationServiceTest {
       assertNull(failedSubscription.get());
     } finally {
       ReflectionTestUtils.setField(pwaNotificationService, "executorService", originalExecutor);
+      ReflectionTestUtils.setField(pwaNotificationService, "directExecutorService", originalDirectExecutor);
     }
   }
 
@@ -674,8 +705,12 @@ public class PwaNotificationServiceTest {
     ScheduledExecutorService originalExecutor =
                                               (ScheduledExecutorService) ReflectionTestUtils.getField(pwaNotificationService,
                                                                                                       "executorService");
+    ScheduledExecutorService originalDirectExecutor =
+                                              (ScheduledExecutorService) ReflectionTestUtils.getField(pwaNotificationService,
+                                                                                                      "directExecutorService");
     ScheduledExecutorService executorService = mock(ScheduledExecutorService.class);
     ReflectionTestUtils.setField(pwaNotificationService, "executorService", executorService);
+    ReflectionTestUtils.setField(pwaNotificationService, "directExecutorService", executorService);
     try {
       when(pwaManifestService.isPwaEnabled()).thenReturn(true);
       UserPushSubscription disabledDevice = new UserPushSubscription();
@@ -703,6 +738,7 @@ public class PwaNotificationServiceTest {
       assertFalse(pwaNotificationService.canReceiveDirectNotifications(TEST_USER, "chat"));
     } finally {
       ReflectionTestUtils.setField(pwaNotificationService, "executorService", originalExecutor);
+      ReflectionTestUtils.setField(pwaNotificationService, "directExecutorService", originalDirectExecutor);
     }
   }
 
@@ -711,8 +747,12 @@ public class PwaNotificationServiceTest {
     ScheduledExecutorService originalExecutor =
                                               (ScheduledExecutorService) ReflectionTestUtils.getField(pwaNotificationService,
                                                                                                       "executorService");
+    ScheduledExecutorService originalDirectExecutor =
+                                              (ScheduledExecutorService) ReflectionTestUtils.getField(pwaNotificationService,
+                                                                                                      "directExecutorService");
     ScheduledExecutorService executorService = mock(ScheduledExecutorService.class);
     ReflectionTestUtils.setField(pwaNotificationService, "executorService", executorService);
+    ReflectionTestUtils.setField(pwaNotificationService, "directExecutorService", executorService);
     try {
       when(pwaManifestService.isPwaEnabled()).thenReturn(true);
       mockSubscription(false);
@@ -728,6 +768,7 @@ public class PwaNotificationServiceTest {
       verifyNoInteractions(pushService);
     } finally {
       ReflectionTestUtils.setField(pwaNotificationService, "executorService", originalExecutor);
+      ReflectionTestUtils.setField(pwaNotificationService, "directExecutorService", originalDirectExecutor);
     }
   }
 
@@ -736,8 +777,12 @@ public class PwaNotificationServiceTest {
     ScheduledExecutorService originalExecutor =
                                               (ScheduledExecutorService) ReflectionTestUtils.getField(pwaNotificationService,
                                                                                                       "executorService");
+    ScheduledExecutorService originalDirectExecutor =
+                                              (ScheduledExecutorService) ReflectionTestUtils.getField(pwaNotificationService,
+                                                                                                      "directExecutorService");
     ScheduledExecutorService executorService = mock(ScheduledExecutorService.class);
     ReflectionTestUtils.setField(pwaNotificationService, "executorService", executorService);
+    ReflectionTestUtils.setField(pwaNotificationService, "directExecutorService", executorService);
     try {
       when(pwaManifestService.isPwaEnabled()).thenReturn(true);
       mockSubscription(true);
@@ -784,6 +829,7 @@ public class PwaNotificationServiceTest {
       }
     } finally {
       ReflectionTestUtils.setField(pwaNotificationService, "executorService", originalExecutor);
+      ReflectionTestUtils.setField(pwaNotificationService, "directExecutorService", originalDirectExecutor);
     }
   }
 
