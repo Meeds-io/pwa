@@ -40,7 +40,7 @@ public interface PwaDirectNotificationActionPlugin {
    * @param username authenticated owner of the device that triggered the action
    * @param action the action id carried by the notification (e.g. "markRead")
    * @param objectKey the object the device's token was scoped to (the
-   *          notification tag at scheduling time, e.g. the chat room id) — the
+   *          notification tag at scheduling time) — the
    *          only trusted target of the action
    * @param data the notification's routing data as echoed by the device
    *          (untrusted beyond {@code objectKey})

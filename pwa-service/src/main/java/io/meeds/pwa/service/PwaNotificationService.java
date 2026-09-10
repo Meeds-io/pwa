@@ -152,10 +152,25 @@ public class PwaNotificationService {
    * event the service worker asks the focused app page to dispatch on click
    * (detail = the notification data) instead of navigating it — the page
    * keeps its state. A listener owning the action calls
-   * {@code preventDefault()}; unclaimed, the notification url is followed, as
-   * it is when no app page is open.
+   * {@code preventDefault()}; unclaimed, {@link #DIRECT_CLIENT_ACTION_URL_DATA}
+   * is followed when the payload carries one, else the notification url — as
+   * it is when no app page is open. That same url is handed to the page in the
+   * action message, for a listener that owns the action and then cannot carry
+   * it out.
    */
   public static final String           DIRECT_CLIENT_ACTION_DATA                     = "clientAction";
+
+  /**
+   * Optional {@code data} key of a direct notification carrying a
+   * {@link #DIRECT_CLIENT_ACTION_DATA}: the url to follow when an app page is
+   * open but does not act in place (it never answered, or it did not own the
+   * action). It stands for what the in-page action would have done, where the
+   * notification url only opens the app; with no app page open at all, the
+   * notification url is followed as usual. An absolute path of this origin,
+   * which the service worker prefixes with the origin as it does the
+   * notification url, and drops when it is shaped otherwise.
+   */
+  public static final String           DIRECT_CLIENT_ACTION_URL_DATA                 = "clientActionUrl";
 
   public static final String           EVENT_USERNAME_PARAM_NAME                     = "username";
 
