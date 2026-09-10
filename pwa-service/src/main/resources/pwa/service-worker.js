@@ -177,6 +177,26 @@ self.addEventListener('message', event => {
   }
 });
 
+/**
+ * A payload url is prefixed with this origin, so it must be a path of it:
+ * anything else — an absolute url, a protocol-relative one, or a path opening
+ * with the userinfo separator — moves the origin somewhere else once
+ * concatenated, and is refused rather than followed.
+ */
+function isAbsolutePath(path) {
+  return typeof path === 'string'
+      && path.startsWith('/')
+      && !path.startsWith('//')
+      && !path.startsWith('/@');
+}
+
+function absolutePathOrRoot(path) {
+  if (path && !isAbsolutePath(path)) {
+    console.debug('Dropping a notification url that is not an absolute path of this origin', path);
+  }
+  return isAbsolutePath(path) ? path : '/';
+}
+
 self.addEventListener('push', event => {
   if (self?.Notification?.permission === 'granted') {
     const data = event?.data?.text?.() || {};
@@ -217,14 +237,14 @@ self.addEventListener('push', event => {
           const title = directNotification.title || getFallbackNotificationTitle();
           directNotification.data = {
             ...(directNotification.data || {}),
-            url: self.location.origin + (directNotification.url || '/'),
+            url: self.location.origin + absolutePathOrRoot(directNotification.url),
             type: 'DIRECT_NOTIFICATION',
           };
           // same-origin, like the url above: every consumer of these two — the
           // worker below and the page, which checks the origin before following
           // one — is entitled to an absolute url of this origin
           const clientActionUrl = directNotification.data.clientActionUrl;
-          if (clientActionUrl?.startsWith('/') && !clientActionUrl.startsWith('//')) {
+          if (isAbsolutePath(clientActionUrl)) {
             directNotification.data.clientActionUrl = self.location.origin + clientActionUrl;
           } else if (clientActionUrl) {
             console.debug('Dropping a client action url that is not an absolute path of this origin', clientActionUrl);

@@ -31,7 +31,9 @@ public interface PwaDirectNotificationBuilder {
    * read", "already covered by this device's  popup") decides here, not at
    * schedule time. May be called concurrently for different devices. Each call
    * must return a fresh instance: the service mutates the returned message
-   * while encoding it (e.g. shrinking the body to the payload cap).
+   * while encoding it (e.g. shrinking the body to the payload cap). Only the
+   * body is shrunk, so everything else the builder sets — title, icon, urls,
+   * data — is its own responsibility to bound.
    *
    * @param subscriptionId the id of the device subscription being fired
    * @return the notification to push, or null to cancel this device's send

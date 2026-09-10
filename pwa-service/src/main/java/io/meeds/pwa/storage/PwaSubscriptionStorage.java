@@ -61,7 +61,10 @@ public class PwaSubscriptionStorage {
     }
   }
 
-  public void create(UserPushSubscription subscription, String username) {
+  /**
+   * Upsert: the subscription document is written whole, keyed on its id.
+   */
+  public void save(UserPushSubscription subscription, String username) {
     settingService.set(Context.USER.id(username),
                        PWA_SUBSCRIPTION_SCOPE,
                        subscription.getId(),

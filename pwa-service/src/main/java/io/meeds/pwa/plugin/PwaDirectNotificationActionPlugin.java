@@ -37,6 +37,13 @@ public interface PwaDirectNotificationActionPlugin {
   String getNotificationKind();
 
   /**
+   * Carries out an action a device triggered on a direct notification.
+   * <p>
+   * Implementations must be idempotent: the single-use credential is consumed
+   * once the action has returned, so that a failed action can be retried, and
+   * two devices replaying the same notification concurrently can both reach
+   * this method before either consumes it.
+   *
    * @param username authenticated owner of the device that triggered the action
    * @param action the action id carried by the notification (e.g. "markRead")
    * @param objectKey the object the device's token was scoped to (the
