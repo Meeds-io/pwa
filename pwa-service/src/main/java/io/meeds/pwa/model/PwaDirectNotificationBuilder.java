@@ -28,7 +28,7 @@ public interface PwaDirectNotificationBuilder {
   /**
    * Produces the notification to push to one device, or {@code null} to cancel
    * the send for that device — the caller's fire-time guard (e.g. "already
-   * read", "already covered by this device's room popup") decides here, not at
+   * read", "already covered by this device's  popup") decides here, not at
    * schedule time. May be called concurrently for different devices. Each call
    * must return a fresh instance: the service mutates the returned message
    * while encoding it (e.g. shrinking the body to the payload cap).
