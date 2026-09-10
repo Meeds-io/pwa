@@ -198,7 +198,7 @@
     listeningToServiceWorker = true;
     navigator.serviceWorker.addEventListener('message', (event) => {
       if (event?.data?.action === 'redirect-path'
-         && event.data.url?.includes(window.location.origin)) {
+         && event.data.url?.startsWith(`${window.location.origin}/`)) {
         window.location.href = event.data.url;
       } else if (event?.data?.action === 'client-action' && event.data.clientAction) {
         // a page listener owning the action calls preventDefault(); the

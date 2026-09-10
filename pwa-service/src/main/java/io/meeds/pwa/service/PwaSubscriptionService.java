@@ -41,18 +41,21 @@ public class PwaSubscriptionService {
   public static final String     PWA_INSTALLED           = "pwa.installed";
 
   /**
-   * A notification kind is a short technical key (e.g. "chat").
+   * Grammar of a direct-notification kind, enforced both when a device stores
+   * a setting for it and when a caller schedules one: it namespaces the
+   * settings map and prefixes the action token's object id, so a kind
+   * carrying the separator would make that prefix ambiguous.
    */
-  private static final Pattern   NOTIFICATION_KIND_PATTERN = Pattern.compile("[a-zA-Z0-9_-]{1,50}");
+  public static final Pattern    NOTIFICATION_KIND_PATTERN = Pattern.compile("[a-zA-Z0-9_-]{1,50}");
 
   /**
    * One day: a deferred popup delayed further stops being a notification.
    */
-  private static final int       MAX_DELAY_MINUTES        = 1440;
+  private static final int       MAX_DELAY_MINUTES       = 1440;
 
-  public static final String     PWA_UNINSTALLED = "pwa.uninstalled";
+  public static final String     PWA_UNINSTALLED         = "pwa.uninstalled";
 
-  private static final Log       LOG             = ExoLogger.getLogger(PwaSubscriptionService.class);
+  private static final Log       LOG                     = ExoLogger.getLogger(PwaSubscriptionService.class);
 
   @Autowired
   private PwaSubscriptionStorage pwaSubscriptionStorage;
@@ -87,7 +90,7 @@ public class PwaSubscriptionService {
                subscription.getId(),
                username,
                getSubscriptionDomain(endpoint));
-      pwaSubscriptionStorage.create(subscription, username);
+      pwaSubscriptionStorage.save(subscription, username);
       listenerService.broadcast(PWA_INSTALLED, username, subscription);
     } else if (!StringUtils.equals(existingSubscription.getPushDeviceSecret(), subscription.getPushDeviceSecret())
                || !StringUtils.equals(existingSubscription.getId(), subscription.getId())) {
@@ -98,7 +101,7 @@ public class PwaSubscriptionService {
       // client-sent settings were discarded at entry: the stored ones survive
       subscription.setNotificationSettings(existingSubscription.getNotificationSettings());
       pwaSubscriptionStorage.delete(existingSubscription.getId(), username);
-      pwaSubscriptionStorage.create(subscription, username);
+      pwaSubscriptionStorage.save(subscription, username);
     } else {
       LOG.debug("Subscription for endpoint {} already exists for user {}", getSubscriptionDomain(endpoint), username);
     }
@@ -124,6 +127,8 @@ public class PwaSubscriptionService {
 
   /**
    * Saves one direct-notification kind's setting on one device subscription.
+   * The write replaces the whole subscription document, so two concurrent
+   * saves of different kinds are last-write-win.
    *
    * @param username subscription owner
    * @param subscriptionId the device subscription id
@@ -149,7 +154,8 @@ public class PwaSubscriptionService {
       throw new ObjectNotFoundException(String.format("Subscription %s of user %s not found", subscriptionId, username));
     }
     subscription.setNotificationSetting(notificationKind, setting);
-    pwaSubscriptionStorage.create(subscription, username);
+    // the whole subscription document is rewritten, not the one setting
+    pwaSubscriptionStorage.save(subscription, username);
   }
 
   public void deleteSubscription(String id, String username) {

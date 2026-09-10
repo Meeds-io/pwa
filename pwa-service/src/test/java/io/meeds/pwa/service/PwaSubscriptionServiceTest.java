@@ -85,11 +85,11 @@ public class PwaSubscriptionServiceTest {
     when(pwaSubscriptionStorage.get(TEST_USER)).thenReturn(Collections.singletonList(userPushSubscription));
     when(userPushSubscription.getEndpoint()).thenReturn(SUBSCRIPTION_ENDPOINT);
     pwaSubscriptionService.createSubscription(userPushSubscription, TEST_USER);
-    verify(pwaSubscriptionStorage, never()).create(userPushSubscription, TEST_USER);
+    verify(pwaSubscriptionStorage, never()).save(userPushSubscription, TEST_USER);
 
     when(pwaSubscriptionStorage.get(TEST_USER)).thenReturn(Collections.emptyList());
     pwaSubscriptionService.createSubscription(userPushSubscription, TEST_USER);
-    verify(pwaSubscriptionStorage).create(userPushSubscription, TEST_USER);
+    verify(pwaSubscriptionStorage).save(userPushSubscription, TEST_USER);
     verify(listenerService).broadcast(PWA_INSTALLED, TEST_USER, userPushSubscription);
   }
 
@@ -136,7 +136,7 @@ public class PwaSubscriptionServiceTest {
     pwaSubscriptionService.createSubscription(newSubscription, TEST_USER);
 
     verify(pwaSubscriptionStorage).delete(SUBSCRIPTION_ID, TEST_USER);
-    verify(pwaSubscriptionStorage).create(newSubscription, TEST_USER);
+    verify(pwaSubscriptionStorage).save(newSubscription, TEST_USER);
     verify(listenerService, never()).broadcast(PWA_INSTALLED, TEST_USER, newSubscription);
   }
 
@@ -155,7 +155,7 @@ public class PwaSubscriptionServiceTest {
     pwaSubscriptionService.createSubscription(newSubscription, TEST_USER);
 
     verify(pwaSubscriptionStorage).delete(SUBSCRIPTION_ID, TEST_USER);
-    verify(pwaSubscriptionStorage).create(newSubscription, TEST_USER);
+    verify(pwaSubscriptionStorage).save(newSubscription, TEST_USER);
   }
 
   @Test
@@ -178,7 +178,7 @@ public class PwaSubscriptionServiceTest {
     pwaSubscriptionService.createSubscription(newSubscription, TEST_USER);
 
     // the client subscribe body never carries settings: the stored ones survive
-    verify(pwaSubscriptionStorage).create(newSubscription, TEST_USER);
+    verify(pwaSubscriptionStorage).save(newSubscription, TEST_USER);
     assertEquals(storedSettings, newSubscription.getNotificationSettings());
   }
 
@@ -193,7 +193,7 @@ public class PwaSubscriptionServiceTest {
     pwaSubscriptionService.createSubscription(newSubscription, TEST_USER);
 
     // fresh create: nothing client-sent reaches the storage
-    verify(pwaSubscriptionStorage).create(newSubscription, TEST_USER);
+    verify(pwaSubscriptionStorage).save(newSubscription, TEST_USER);
     assertNull(newSubscription.getNotificationSettings());
   }
 
@@ -214,7 +214,7 @@ public class PwaSubscriptionServiceTest {
 
     DeviceNotificationSetting setting = new DeviceNotificationSetting(true, 10);
     pwaSubscriptionService.saveNotificationSetting(TEST_USER, SUBSCRIPTION_ID, "chat", setting);
-    verify(pwaSubscriptionStorage).create(subscription, TEST_USER);
+    verify(pwaSubscriptionStorage).save(subscription, TEST_USER);
     assertEquals(setting, pwaSubscriptionService.getNotificationSetting(TEST_USER, SUBSCRIPTION_ID, "chat"));
 
     // a kind is a short technical key; the delay is bounded to one day
