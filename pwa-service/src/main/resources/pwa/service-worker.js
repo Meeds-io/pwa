@@ -220,6 +220,16 @@ self.addEventListener('push', event => {
             url: self.location.origin + (directNotification.url || '/'),
             type: 'DIRECT_NOTIFICATION',
           };
+          // same-origin, like the url above: every consumer of these two — the
+          // worker below and the page, which checks the origin before following
+          // one — is entitled to an absolute url of this origin
+          const clientActionUrl = directNotification.data.clientActionUrl;
+          if (clientActionUrl?.startsWith('/') && !clientActionUrl.startsWith('//')) {
+            directNotification.data.clientActionUrl = self.location.origin + clientActionUrl;
+          } else if (clientActionUrl) {
+            console.debug('Dropping a client action url that is not an absolute path of this origin', clientActionUrl);
+            delete directNotification.data.clientActionUrl;
+          }
           delete directNotification.title;
           delete directNotification.url;
           if (!directNotification.icon) {
@@ -288,25 +298,30 @@ self.addEventListener('notificationclick', event => {
         }
 
         const clientAction = event?.notification?.data?.clientAction;
+        // an app page is open: whatever we fall back to must land where the
+        // in-page action would have gone, since a backgrounded page is often
+        // frozen and answers nothing. The notification url only opens the app
+        // and is kept for the cold start below, where there is no page to act in
+        const clientUrl = (clientAction && matchingClient && event?.notification?.data?.clientActionUrl) || url;
         // the notification names an in-page action: hand it to the most
         // recently focused app page instead of navigating it (a reload); a
         // page that does not confirm it owns the action is navigated as before
         if (clientAction && matchingClient?.focus
-            && await postClientAction(matchingClient, clientAction, url, event.notification.data)) {
+            && await postClientAction(matchingClient, clientAction, clientUrl, event.notification.data)) {
           // the page owns the action
         } else if (matchingClient?.navigate && matchingClient?.focus) {
           try {
             await matchingClient.focus();
             try {
-              await matchingClient.navigate(url);
+              await matchingClient.navigate(clientUrl);
             } catch(e) {
               matchingClient.postMessage({
                 action: 'redirect-path',
-                url,
+                url: clientUrl,
               });
             }
           } catch(e) {
-            await clients.openWindow(url);
+            await clients.openWindow(clientUrl);
           }
         } else {
           await clients.openWindow(url);
