@@ -122,7 +122,7 @@
                   </v-btn>
                 </div>
               </template>
-              <span v-if="!pwaSupported">
+              <span v-if="!installSupported">
                 {{ $t('UserSettings.pwa.browserNotSupported') }}
               </span>
               <span v-else-if="!pwaEnabled">
@@ -160,6 +160,7 @@ export default {
     installed: true,
     pwaEnabled: eXo.env.portal.pwaEnabled,
     pwaSupported: true,
+    installPromptSupported: true,
     notificationPermission: Notification.permission,
     isIOs: false,
     loading: false,
@@ -169,6 +170,10 @@ export default {
   computed: {
     isMobile() {
       return this.$vuetify?.breakpoint?.mdAndDown;
+    },
+    installSupported() {
+      // iOS installs from the share sheet, with no prompt event to detect
+      return this.installPromptSupported || this.isIOs;
     },
     extensionParams() {
       return {
@@ -198,7 +203,11 @@ export default {
       }
     });
     document.addEventListener('pwa-beforeinstallprompt', this.checkInstalled);
-    this.pwaSupported = 'onbeforeinstallprompt' in window;
+    // the Chromium install prompt: absent on every iOS engine, where the app is
+    // installed from the share sheet instead
+    this.installPromptSupported = 'onbeforeinstallprompt' in window;
+    // what an installed app can actually do — the flag contributed settings read
+    this.pwaSupported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
     this.isIOs = this.isIOsAgent();
     this.checkInstalled();
   },
@@ -208,7 +217,7 @@ export default {
   methods: {
     async checkInstalled() {
       const pwaMode = !!(window?.matchMedia('(display-mode: standalone)')?.matches || window?.matchMedia('(display-mode: tabbed)')?.matches);
-      const installed = pwaMode || (this.pwaEnabled && this.pwaSupported && !window.deferredPwaPrompt) || false;
+      const installed = pwaMode || (this.pwaEnabled && this.installPromptSupported && !window.deferredPwaPrompt) || false;
       const registration = await navigator?.serviceWorker?.getRegistration?.();
       this.installed = installed && !!registration;
       if (window.deferredPwaPromptTimeout) {
@@ -229,7 +238,7 @@ export default {
       }
     },
     async installPwa() {
-      if (this.pwaSupported && window.deferredPwaPrompt) {
+      if (this.installPromptSupported && window.deferredPwaPrompt) {
         this.loading = true;
         try {
           await window.deferredPwaPrompt.prompt();
