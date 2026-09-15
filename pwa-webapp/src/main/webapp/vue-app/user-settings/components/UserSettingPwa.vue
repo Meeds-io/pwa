@@ -161,7 +161,8 @@ export default {
     pwaEnabled: eXo.env.portal.pwaEnabled,
     pwaSupported: true,
     installPromptSupported: true,
-    notificationPermission: Notification.permission,
+    // iOS exposes Notification to the installed app only: a bare read throws in a Safari tab
+    notificationPermission: window.Notification?.permission || 'default',
     isIOs: false,
     loading: false,
     permissionLoading: false,
