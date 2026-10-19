@@ -131,8 +131,9 @@
                 {{ $t('pwaSettings.BackgroundColor') }}
               </div>
               <div class="width-fit-content">
-                <pwa-settings-color-picker
-                  v-model="manifest.backgroundColor" />
+                <color-picker
+                  v-model="manifest.backgroundColor"
+                  swatch-size="50px" />
               </div>
             </v-col>
             <v-col
@@ -143,8 +144,9 @@
                 {{ $t('pwaSettings.ThemeColor') }}
               </div>
               <div class="width-fit-content">
-                <pwa-settings-color-picker
-                  v-model="manifest.themeColor" />
+                <color-picker
+                  v-model="manifest.themeColor"
+                  swatch-size="50px" />
               </div>
             </v-col>
           </v-row>
