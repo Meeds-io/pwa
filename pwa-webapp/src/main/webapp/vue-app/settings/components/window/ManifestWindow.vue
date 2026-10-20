@@ -133,6 +133,7 @@
               <div class="width-fit-content">
                 <color-picker
                   v-model="manifest.backgroundColor"
+                  :aria-label="$t('pwaSettings.BackgroundColor')"
                   swatch-size="50px" />
               </div>
             </v-col>
@@ -146,6 +147,7 @@
               <div class="width-fit-content">
                 <color-picker
                   v-model="manifest.themeColor"
+                  :aria-label="$t('pwaSettings.ThemeColor')"
                   swatch-size="50px" />
               </div>
             </v-col>
