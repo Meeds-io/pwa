@@ -21,7 +21,6 @@ import PwaSettings from './components/PwaSettings.vue';
 import ManifestWindow from './components/window/ManifestWindow.vue';
 
 import ImageInput from './components/form/ImageInput.vue';
-import ColorPicker from './components/form/ColorPicker.vue';
 
 const components = {
   'pwa-settings': PwaSettings,
@@ -29,7 +28,6 @@ const components = {
   'pwa-settings-manifest-window': ManifestWindow,
 
   'pwa-settings-image-input': ImageInput,
-  'pwa-settings-color-picker': ColorPicker,
 };
 
 for (const key in components) {
