@@ -182,6 +182,8 @@ public class PwaManifestService {
 
   private ManifestIcon            monochromeIcon             = null;
 
+  private long                    manifestStamp              = -1;
+
   @PostConstruct
   @ContainerTransactional
   public void init() {
@@ -211,7 +213,11 @@ public class PwaManifestService {
 
   public String getManifestContent(String username) {
     String content;
-    if (pwaManifest.getContent() == null) {
+    long stamp = brandingService.getLastUpdatedTime();
+    if (pwaManifest.getContent() == null || stamp != manifestStamp) {
+      // the manifest is built again when the branding stamp moves, whichever node published it
+      pwaManifest.setContent(null);
+      manifestStamp = stamp;
       computePwaProperties();
       content = pwaManifest.getContent(brandingService.getBrandingInformation(false));
     } else {
@@ -263,26 +269,32 @@ public class PwaManifestService {
   }
 
   public ManifestIcon getLargeIcon() {
-    if (this.largeIcon == null) {
+    // read again as soon as the file it comes from is no more the current one: a node never serves the icon a
+    // publication made on another node replaced
+    ManifestIcon icon = this.largeIcon;
+    Long imageId = getPropertyValueLong(PWA_LARGE_ICON);
+    if (icon == null || !isFromFile(icon, imageId, brandingService.getLogoId())) {
+      icon = null;
       try {
-        Long imageId = getPropertyValueLong(PWA_LARGE_ICON);
         if (imageId != null) {
-          this.largeIcon = retrieveStoredBrandingFile(imageId, new ManifestIcon());
+          icon = retrieveStoredBrandingFile(imageId, new ManifestIcon());
         } else {
           Logo brandingLogo = brandingService.getLogo();
           if (brandingLogo != null) {
-            this.largeIcon = new ManifestIcon(null,
-                                              brandingLogo.getSize(),
-                                              brandingLogo.getData(),
-                                              brandingLogo.getUpdatedDate(),
-                                              brandingLogo.getFileId());
+            icon = new ManifestIcon(null,
+                                    brandingLogo.getSize(),
+                                    brandingLogo.getData(),
+                                    brandingLogo.getUpdatedDate(),
+                                    brandingLogo.getFileId());
           }
         }
       } catch (Exception e) {
         LOG.warn("Error retrieving manifest large icon", e);
       }
+      this.largeIcon = icon;
+      this.monochromeIcon = null;
     }
-    return this.largeIcon;
+    return icon;
   }
 
   @SneakyThrows
@@ -292,26 +304,30 @@ public class PwaManifestService {
   }
 
   public ManifestIcon getSmallIcon() {
-    if (this.smallIcon == null) {
+    ManifestIcon icon = this.smallIcon;
+    Long imageId = getPropertyValueLong(PWA_SMALL_ICON);
+    if (icon == null || !isFromFile(icon, imageId, brandingService.getFaviconId())) {
+      icon = null;
       try {
-        Long imageId = getPropertyValueLong(PWA_SMALL_ICON);
         if (imageId != null) {
-          this.smallIcon = retrieveStoredBrandingFile(imageId, new ManifestIcon());
+          icon = retrieveStoredBrandingFile(imageId, new ManifestIcon());
         } else {
           Favicon brandingFavicon = brandingService.getFavicon();
           if (brandingFavicon != null) {
-            this.smallIcon = new ManifestIcon(null,
-                                              brandingFavicon.getSize(),
-                                              brandingFavicon.getData(),
-                                              brandingFavicon.getUpdatedDate(),
-                                              brandingFavicon.getFileId());
+            icon = new ManifestIcon(null,
+                                    brandingFavicon.getSize(),
+                                    brandingFavicon.getData(),
+                                    brandingFavicon.getUpdatedDate(),
+                                    brandingFavicon.getFileId());
           }
         }
       } catch (Exception e) {
         LOG.warn("Error retrieving manifest small icon", e);
       }
+      this.smallIcon = icon;
+      this.monochromeIcon = null;
     }
-    return this.smallIcon;
+    return icon;
   }
 
   @SneakyThrows
@@ -322,12 +338,23 @@ public class PwaManifestService {
 
   public String getLargeIconPath() {
     ManifestIcon manifestIcon = getLargeIcon();
-    return manifestIcon == null ? null : PWA_LARGE_ICON_BASE_PATH + "/" + Objects.hash(manifestIcon.getUpdatedDate());
+    return manifestIcon == null ? null : PWA_LARGE_ICON_BASE_PATH + "/" + manifestIcon.getFileId();
   }
 
   public String getSmallIconPath() {
     ManifestIcon manifestIcon = getSmallIcon();
-    return manifestIcon == null ? null : PWA_SMALL_ICON_BASE_PATH + "/" + Objects.hash(manifestIcon.getUpdatedDate());
+    return manifestIcon == null ? null : PWA_SMALL_ICON_BASE_PATH + "/" + manifestIcon.getFileId();
+  }
+
+  /**
+   * @param icon the icon a node holds
+   * @param storedId the file the administrator stored for it, null when none
+   * @param brandingId the file of the branding image it falls back to
+   * @return true when the icon still comes from the file it must come from
+   */
+  private boolean isFromFile(ManifestIcon icon, Long storedId, Long brandingId) {
+    Long currentId = storedId == null ? brandingId : storedId;
+    return currentId != null && currentId == icon.getFileId();
   }
 
   public void refreshManifest() {
@@ -571,20 +598,25 @@ public class PwaManifestService {
   }
 
   public ManifestIcon getMonochromeIcon() {
-    if (this.monochromeIcon == null) {
-      BrandingFile icon = getSmallIcon();
+    BrandingFile icon = getSmallIcon();
+    if (icon == null) {
+      return null;
+    }
+    ManifestIcon monochrome = this.monochromeIcon;
+    if (monochrome == null || monochrome.getFileId() != icon.getFileId()) {
       try {
-        icon.setData(convertToMonochrome(icon.getData()));
-        this.monochromeIcon = new ManifestIcon(null,
-                                               icon.getSize(),
-                                               icon.getData(),
-                                               icon.getUpdatedDate(),
-                                               icon.getFileId());
+        // a new array: the small icon keeps its own bytes, it is served as it is
+        monochrome = new ManifestIcon(null,
+                                      icon.getSize(),
+                                      convertToMonochrome(icon.getData()),
+                                      icon.getUpdatedDate(),
+                                      icon.getFileId());
+        this.monochromeIcon = monochrome;
       } catch (Exception e) {
         LOG.error("Can't convert smallIcon to Monochrome", e);
       }
     }
-    return this.monochromeIcon;
+    return monochrome;
   }
 
   @SneakyThrows
