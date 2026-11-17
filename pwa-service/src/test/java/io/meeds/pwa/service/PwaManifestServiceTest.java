@@ -28,6 +28,7 @@ import static io.meeds.pwa.service.PwaManifestService.PWA_NAME;
 import static io.meeds.pwa.service.PwaManifestService.PWA_SMALL_ICON;
 import static io.meeds.pwa.service.PwaManifestService.PWA_SMALL_ICON_BASE_PATH;
 import static io.meeds.pwa.service.PwaManifestService.PWA_THEME_COLOR;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -48,6 +49,7 @@ import static org.mockito.Mockito.when;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.Locale;
@@ -289,6 +291,64 @@ public class PwaManifestServiceTest {
     mockWithStoredValues();
     pwaManifestService.refreshManifest();
     assertNotEquals(manifestHash, pwaManifestService.getManifestHash());
+  }
+
+  @Test
+  public void iconPathsCarryTheIdOfTheFileTheIconComesFrom() throws Exception {
+    mockWithStoredValues();
+    pwaManifestService.init();
+
+    assertEquals(PWA_LARGE_ICON_BASE_PATH + "/" + LARGE_ICON_FILE_ID, pwaManifestService.getLargeIconPath());
+    assertEquals(PWA_SMALL_ICON_BASE_PATH + "/" + SMALL_ICON_FILE_ID, pwaManifestService.getSmallIconPath());
+  }
+
+  @Test
+  public void smallIconIsReadAgainWhenTheBrandingFileChanged() throws Exception {
+    mockWithBrandingValues();
+    when(brandingService.getFaviconId()).thenReturn(Long.parseLong(SMALL_ICON_FILE_ID));
+    pwaManifestService.init();
+    assertEquals(Long.parseLong(SMALL_ICON_FILE_ID), pwaManifestService.getSmallIcon().getFileId());
+
+    // published on another node: this one is not told by an event
+    when(brandingService.getFaviconId()).thenReturn(99L);
+    when(brandingFavicon.getFileId()).thenReturn(99L);
+
+    assertEquals(99L, pwaManifestService.getSmallIcon().getFileId());
+    assertEquals(PWA_SMALL_ICON_BASE_PATH + "/99", pwaManifestService.getSmallIconPath());
+  }
+
+  @Test
+  public void monochromeIconLeavesTheSmallIconAsItIs() throws Exception {
+    mockWithStoredValues();
+    byte[] png;
+    try (InputStream stream = getClass().getClassLoader().getResourceAsStream("test_icon.png")) {
+      png = stream.readAllBytes();
+    }
+    when(smallIconFileItem.getAsByte()).thenAnswer(invocation -> png.clone());
+    pwaManifestService.init();
+
+    ManifestIcon monochromeIcon = pwaManifestService.getMonochromeIcon();
+
+    assertNotNull(monochromeIcon);
+    assertArrayEquals(png, pwaManifestService.getSmallIcon().getData());
+    assertFalse(Arrays.equals(png, monochromeIcon.getData()));
+  }
+
+  @Test
+  public void manifestIsBuiltAgainWhenTheBrandingStampMoved() throws Exception {
+    mockWithBrandingValues();
+    mockBrandingAttributes();
+    when(branding.getThemeStyle()).thenReturn(Collections.singletonMap("primaryColor", PRIMARY_COLOR));
+    when(brandingService.getLastUpdatedTime()).thenReturn(1L);
+    pwaManifestService.init();
+    assertTrue(pwaManifestService.getManifestContent().contains("\"" + MANIFEST_NAME + "\""));
+
+    // renamed from another node: the stamp is what this node sees
+    mockSettingValue(PWA_NAME, "renamed");
+    assertTrue(pwaManifestService.getManifestContent().contains("\"" + MANIFEST_NAME + "\""));
+    when(brandingService.getLastUpdatedTime()).thenReturn(2L);
+
+    assertTrue(pwaManifestService.getManifestContent().contains("\"renamed\""));
   }
 
   @Test

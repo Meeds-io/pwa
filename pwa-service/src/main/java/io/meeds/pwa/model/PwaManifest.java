@@ -83,12 +83,12 @@ public class PwaManifest {
   }
 
   private String getSmallIconPath(Branding branding) {
-    return smallIconPath == null ? BRANDING_BASE_URL + "favicon?v=" + branding.getFavicon().getUpdatedDate() + "&size=16x16" :
+    return smallIconPath == null ? BRANDING_BASE_URL + "favicon?v=" + branding.getFavicon().getFileId() + "&size=16x16" :
                                  smallIconPath;
   }
 
   private String getLargeIconPath(Branding branding) {
-    return largeIconPath == null ? BRANDING_BASE_URL + "logo?v=" + branding.getLogo().getUpdatedDate() + "&size=512x512" :
+    return largeIconPath == null ? BRANDING_BASE_URL + "logo?v=" + branding.getLogo().getFileId() + "&size=512x512" :
                                  largeIconPath;
   }
 
