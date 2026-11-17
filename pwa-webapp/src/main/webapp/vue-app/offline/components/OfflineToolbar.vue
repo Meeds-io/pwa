@@ -36,7 +36,7 @@
           class="ma-0"
           tile>
           <v-img
-            src="/portal/rest/v1/platform/branding/logo"
+            :src="logoSrc"
             height="36px"
             contain />
         </v-list-item-avatar>
@@ -61,10 +61,16 @@
 <script>
 export default {
   data: () => ({
+    darkDevice: false,
+    darkQuery: null,
     branding: null,
     online: false,
   }),
   computed: {
+    // the offline page follows the device (data-display-mode="auto"): the dark logo on a dark device
+    logoSrc() {
+      return this.darkDevice ? '/portal/rest/v1/platform/branding/darkLogo' : '/portal/rest/v1/platform/branding/logo';
+    },
     companyName() {
       return this.branding?.companyName;
     },
@@ -93,9 +99,18 @@ export default {
     },
   },
   created() {
+    this.darkQuery = window.matchMedia?.('(prefers-color-scheme: dark)');
+    this.darkDevice = !!this.darkQuery?.matches;
+    this.darkQuery?.addEventListener?.('change', this.refreshDevice);
     this.init();
   },
+  beforeDestroy() {
+    this.darkQuery?.removeEventListener?.('change', this.refreshDevice);
+  },
   methods: {
+    refreshDevice(event) {
+      this.darkDevice = !!event?.matches;
+    },
     reload() {
       window.location.reload();
     },

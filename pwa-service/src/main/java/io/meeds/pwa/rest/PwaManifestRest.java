@@ -19,13 +19,16 @@
 package io.meeds.pwa.rest;
 
 import java.io.ByteArrayInputStream;
-import java.io.InputStream;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.CacheControl;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -42,6 +45,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 import org.exoplatform.portal.branding.model.BrandingFile;
 
+import io.meeds.portal.theme.util.BrandingImageValidator;
+
+import io.meeds.pwa.model.ManifestIcon;
 import io.meeds.pwa.model.PwaManifestUpdate;
 import io.meeds.pwa.service.PwaManifestService;
 
@@ -105,7 +111,7 @@ public class PwaManifestRest {
                                                                   @Parameter(description = "VersionId of the icon", required = true)
                                                                   @PathVariable("version") String version) {
     String realSize= size+"x"+size;
-    return getManifestLargeIcon(request,realSize);
+    return iconResponse(request, pwaManifestService.getLargeIcon(realSize), version, pwaManifestService.getLargeIcon());
   }
 
   @GetMapping("/smallIcon/{version}/{size}.png")
@@ -121,7 +127,7 @@ public class PwaManifestRest {
                                                                   @Parameter(description = "VersionId of the icon", required = true)
                                                                   @PathVariable("version") String version) {
     String realSize= size+"x"+size;
-    return getManifestSmallIcon(request,realSize);
+    return iconResponse(request, pwaManifestService.getSmallIcon(realSize), version, pwaManifestService.getSmallIcon());
   }
 
   @GetMapping("/largeIcon")
@@ -133,11 +139,7 @@ public class PwaManifestRest {
   public ResponseEntity<InputStreamResource> getManifestLargeIcon(WebRequest request,
                                                                   @Parameter(description = "Dimensions of size")
                                                                   @RequestParam(name = "sizes", required = false) String sizes) {
-    InputStream inputStream = getBrandingFileResponse(request, pwaManifestService.getLargeIcon(sizes));
-    return inputStream == null ? null :
-           ResponseEntity.ok()
-                         .contentType(MediaType.IMAGE_PNG)
-                         .body(new InputStreamResource(inputStream));
+    return iconResponse(request, pwaManifestService.getLargeIcon(sizes), null, null);
   }
 
   @GetMapping("/monochromeIcon")
@@ -147,11 +149,7 @@ public class PwaManifestRest {
       @ApiResponse(responseCode = "304", description = "Icon file not modified"),
   })
   public ResponseEntity<InputStreamResource> getMonochromeIcon(WebRequest request) {
-    InputStream inputStream = getBrandingFileResponse(request, pwaManifestService.getMonochromeIcon());
-    return inputStream == null ? null :
-           ResponseEntity.ok()
-                         .contentType(MediaType.IMAGE_PNG)
-                         .body(new InputStreamResource(inputStream));
+    return iconResponse(request, pwaManifestService.getMonochromeIcon(), null, null);
   }
 
   @GetMapping("/smallIcon")
@@ -163,25 +161,51 @@ public class PwaManifestRest {
   public ResponseEntity<InputStreamResource> getManifestSmallIcon(WebRequest request,
                                                                   @Parameter(description = "Dimensions of size")
                                                                   @RequestParam(name = "sizes", required = false) String sizes) {
-    InputStream inputStream = getBrandingFileResponse(request, pwaManifestService.getSmallIcon(sizes));
-    return inputStream == null ? null :
-           ResponseEntity.ok()
-                         .contentType(MediaType.IMAGE_PNG)
-                         .body(new InputStreamResource(inputStream));
+    return iconResponse(request, pwaManifestService.getSmallIcon(sizes), null, null);
   }
 
-  private InputStream getBrandingFileResponse(WebRequest request,
-                                              BrandingFile iconFile) {
-    if (iconFile == null || iconFile.getData() == null) {
+  /**
+   * An icon is served with the type its bytes are, never sniffed by the
+   * browser, and an SVG under a policy that runs no script. The URL of a
+   * manifest carries the id of the file the icon comes from: asked with the
+   * current id, the answer is cacheable for good, asked with another one (or
+   * with none) it is the current icon, kept a minute at most and with no
+   * validator.
+   *
+   * @param request the request
+   * @param icon the icon to send, with its own size when a size was asked
+   * @param version the version of the URL, null for an unversioned one
+   * @param source the icon of the manifest the version designates, null for an
+   *          unversioned URL
+   * @return the answer, null when the request is answered not modified
+   */
+  private ResponseEntity<InputStreamResource> iconResponse(WebRequest request,
+                                                           BrandingFile icon,
+                                                           String version,
+                                                           ManifestIcon source) {
+    if (icon == null || icon.getData() == null) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "pwaManifest.imageFileNotFound");
     }
-    long lastUpdated = iconFile.getUpdatedDate();
-    String eTag = String.valueOf(lastUpdated);
-    if (request.checkNotModified(eTag)) {
-      return null;
-    } else {
-      return new ByteArrayInputStream(iconFile.getData());
+    String type = BrandingImageValidator.detectType(icon.getData());
+    ResponseEntity.BodyBuilder builder = ResponseEntity.ok()
+                                                       .contentType(type == null ? MediaType.IMAGE_PNG : MediaType.parseMediaType(type))
+                                                       .header("X-Content-Type-Options", "nosniff");
+    if (BrandingImageValidator.SVG.equals(type)) {
+      builder.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'");
     }
+    if (source != null && version != null && String.valueOf(source.getFileId()).equals(version)) {
+      String eTag = String.valueOf(icon.getFileId());
+      if (request.checkNotModified(eTag)) {
+        return null;
+      }
+      return builder.eTag(eTag)
+                    .cacheControl(CacheControl.maxAge(Duration.ofDays(365)).cachePublic())
+                    .header(HttpHeaders.EXPIRES,
+                            DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneOffset.UTC).plusDays(365)))
+                    .body(new InputStreamResource(new ByteArrayInputStream(icon.getData())));
+    }
+    return builder.cacheControl(CacheControl.maxAge(Duration.ofMinutes(1)))
+                  .body(new InputStreamResource(new ByteArrayInputStream(icon.getData())));
   }
 
 }
