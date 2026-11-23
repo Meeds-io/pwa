@@ -65,10 +65,16 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+
 import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
@@ -879,6 +885,27 @@ public class PwaNotificationServiceTest {
     when(pwaNotificationTokenService.consumeToken(PUSH_ACCESS_TOKEN, objectId, SUBSCRIPTION_ID)).thenReturn("someoneElse");
     assertThrows(IllegalAccessException.class,
                  () -> pwaNotificationService.validateDirectNotificationAccess(objectId, header, true));
+  }
+
+  @Test
+  public void createWithDeletedNotificationLogsNoWarning() throws Exception { // NOSONAR
+    when(pwaManifestService.isPwaEnabled()).thenReturn(true);
+    when(webNotificationService.getNotificationInfo(String.valueOf(NOTIFICATION_ID))).thenReturn(null);
+    Logger serviceLogger = (Logger) LoggerFactory.getLogger(PwaNotificationService.class);
+    ListAppender<ILoggingEvent> appender = new ListAppender<>();
+    appender.start();
+    serviceLogger.addAppender(appender);
+    try {
+      ScheduledFuture<?> future = pwaNotificationService.create(NOTIFICATION_ID);
+      assertNotNull(future);
+      assertEquals(0, (int) future.get());
+      assertTrue(appender.list.stream()
+                              .noneMatch(e -> e.getLevel().isGreaterOrEqual(Level.WARN)));
+    } finally {
+      serviceLogger.detachAppender(appender);
+    }
+    verifyNoInteractions(listenerService);
+    verifyNoInteractions(pwaSubscriptionService);
   }
 
   @Test

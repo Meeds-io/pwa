@@ -795,7 +795,8 @@ public class PwaNotificationService {
 
   private int sendNotification(NotificationInfo notification, String action) {
     if (notification == null) {
-      log.warn("Can't send notification action {} since notification is null", action);
+      // removed right after its creation (e.g. no message to build) or never committed
+      log.debug("Notification action {} skipped since the notification does not exist anymore", action);
       return 0;
     }
     String notificationId = notification.getId();
